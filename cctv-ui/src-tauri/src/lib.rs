@@ -4,6 +4,7 @@ use std::process::{Child, Command};
 use std::sync::Mutex;
 use std::io::Write;
 use std::collections::BTreeSet;
+use tauri_plugin_updater::UpdaterExt;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -637,6 +638,48 @@ async fn query_recorded_days(
     .map_err(|e| e.to_string())?
 }
 
+#[derive(serde::Serialize)]
+struct UpdateInfo {
+    available: bool,
+    version: Option<String>,
+    current_version: String,
+    body: Option<String>,
+}
+
+#[tauri::command]
+async fn check_update(app: tauri::AppHandle) -> Result<UpdateInfo, String> {
+    let current_version = app.package_info().version.to_string();
+    let updater = match app.updater() {
+        Ok(u) => u,
+        Err(e) => return Err(e.to_string()),
+    };
+    match updater.check().await {
+        Ok(Some(update)) => Ok(UpdateInfo {
+            available: true,
+            version: Some(update.version),
+            current_version,
+            body: update.body,
+        }),
+        Ok(None) => Ok(UpdateInfo {
+            available: false,
+            version: None,
+            current_version,
+            body: None,
+        }),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
+    let updater = app.updater().map_err(|e| e.to_string())?;
+    if let Some(update) = updater.check().await.map_err(|e| e.to_string())? {
+        update.download_and_install(|_chunk, _total| {}, || {}).await.map_err(|e| e.to_string())?;
+        app.restart();
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -671,7 +714,9 @@ pub fn run() {
             prompt_save_file,
             save_binary_file,
             open_folder_and_select,
-            query_recorded_days
+            query_recorded_days,
+            check_update,
+            install_update
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

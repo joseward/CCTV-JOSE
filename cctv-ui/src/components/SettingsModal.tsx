@@ -12,6 +12,7 @@ import {
   type PhoneValidation,
   type WhatsAppGatewayStatus
 } from '../services/notifications';
+import { checkAppUpdate, installAppUpdate, type UpdateStatus } from '../services/updater';
 import { 
   X, 
   Trash2, 
@@ -77,7 +78,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   appSettings,
   onUpdateSettings,
 }) => {
-  const [viewTab, setViewTab] = useState<'dvrs' | 'channels' | 'notifications'>('dvrs');
+  const [viewTab, setViewTab] = useState<'dvrs' | 'channels' | 'notifications' | 'updates'>('dvrs');
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState<boolean>(false);
+  const [installingUpdate, setInstallingUpdate] = useState<boolean>(false);
+  const [updateMsg, setUpdateMsg] = useState<string | null>(null);
   const [filterGroup, setFilterGroup] = useState<string>('all');
   const [configFilePath, setConfigFilePath] = useState<string>('cameras.json');
   const [go2rtcOnline, setGo2RtcOnline] = useState<boolean>(true);
@@ -333,6 +338,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
+  // Check and install updates via GitHub
+  const handleCheckUpdate = async () => {
+    setCheckingUpdate(true);
+    setUpdateMsg(null);
+    try {
+      const res = await checkAppUpdate();
+      setUpdateStatus(res);
+      if (!res.available) {
+        setUpdateMsg('✓ Tu aplicación ya cuenta con la última versión disponible.');
+      }
+    } catch (err: any) {
+      setUpdateMsg(`No se pudo verificar: ${err?.message || err}`);
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
+  const handleInstallUpdate = async () => {
+    setInstallingUpdate(true);
+    try {
+      await installAppUpdate();
+    } catch (err: any) {
+      alert(`Error al descargar o instalar la actualización: ${err?.message || err}`);
+      setInstallingUpdate(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -430,10 +462,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <Bell className="w-3.5 h-3.5 text-amber-400" />
                 <span>🔔 Monitoreo & WhatsApp</span>
               </button>
+
+              <button
+                onClick={() => setViewTab('updates')}
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg font-bold transition ${
+                  viewTab === 'updates'
+                    ? 'bg-purple-600 text-white shadow'
+                    : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                }`}
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
+                <span>🔄 Actualizaciones GitHub</span>
+              </button>
             </div>
 
             {/* Backup & Add Buttons */}
-            {viewTab !== 'notifications' && (
+            {viewTab !== 'notifications' && viewTab !== 'updates' && (
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => {
@@ -1185,6 +1229,96 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <CheckCircle className="w-4 h-4" />
                     <span>¡Configuración guardada con éxito!</span>
                   </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: Software Updates (GitHub Releases) */}
+          {viewTab === 'updates' && (
+            <div className="space-y-4 animate-in fade-in duration-150">
+              {/* Header card */}
+              <div className="p-4 rounded-xl border border-purple-800/40 bg-purple-950/20 space-y-2">
+                <div className="flex items-center space-x-2 text-purple-300 font-bold text-sm">
+                  <RefreshCw className="w-4 h-4 text-purple-400" />
+                  <span>Actualizaciones del Sistema (GitHub Releases)</span>
+                </div>
+                <p className="text-xs text-slate-300">
+                  Las actualizaciones se distribuyen con firma criptográfica digital Ed25519 a través del repositorio oficial de GitHub.
+                </p>
+                <div className="pt-2 flex flex-wrap items-center gap-4 text-xs font-mono">
+                  <div className="flex items-center space-x-1.5 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
+                    <span className="text-slate-400">Versión Instalada:</span>
+                    <strong className="text-emerald-400">{updateStatus?.currentVersion || 'v1.0.0'}</strong>
+                  </div>
+                  <div className="flex items-center space-x-1.5 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
+                    <span className="text-slate-400">Repositorio:</span>
+                    <strong className="text-purple-300">github.com/joseward/CCTV-JOSE</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Box */}
+              <div className="p-5 rounded-xl border border-slate-800 bg-slate-950/60 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-white tracking-wide">Buscar Nuevas Versiones</h4>
+                    <p className="text-[11px] text-slate-400">
+                      Comprueba si existe un nuevo instalador o versión publicada en el repositorio.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCheckUpdate}
+                    disabled={checkingUpdate || installingUpdate}
+                    className="flex items-center space-x-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-800 text-white font-bold rounded-lg shadow-lg transition"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${checkingUpdate ? 'animate-spin' : ''}`} />
+                    <span>{checkingUpdate ? 'Comprobando...' : '🔍 Buscar Actualizaciones Ahora'}</span>
+                  </button>
+                </div>
+
+                {/* Status messages */}
+                {updateMsg && (
+                  <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-200">
+                    {updateMsg}
+                  </div>
+                )}
+
+                {/* Update Available Card */}
+                {updateStatus?.available && (
+                  <div className="p-4 rounded-xl border border-emerald-500/50 bg-emerald-950/20 space-y-3 animate-in zoom-in-95">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2 text-emerald-400 font-bold">
+                        <CheckCircle className="w-5 h-5 text-emerald-400" />
+                        <span>¡Nueva versión disponible: v{updateStatus.version}!</span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/40">
+                        ACTUALIZACIÓN LISTA
+                      </span>
+                    </div>
+
+                    {updateStatus.body && (
+                      <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-3 text-slate-300 text-xs font-mono whitespace-pre-wrap">
+                        {updateStatus.body}
+                      </div>
+                    )}
+
+                    <div className="pt-2 flex items-center justify-between">
+                      <span className="text-[11px] text-slate-400">
+                        Al pulsar instalar, la app descargará la actualización, la verificará y se reiniciará automáticamente.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleInstallUpdate}
+                        disabled={installingUpdate}
+                        className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 text-white font-bold rounded-lg shadow-lg transition"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>{installingUpdate ? 'Instalando y Reiniciando...' : 'Descargar e Instalar Ahora'}</span>
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
