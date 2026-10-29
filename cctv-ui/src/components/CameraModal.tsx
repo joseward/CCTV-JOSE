@@ -261,12 +261,13 @@ export const CameraModal: React.FC<CameraModalProps> = ({
           {/* Preset Selector */}
           <div>
             <label className="block font-semibold mb-1 text-slate-400">Fabricante / Plantilla RTSP</label>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-5 gap-2">
               {[
-                { id: 'hikvision', label: 'Hikvision / Hilook' },
-                { id: 'dahua', label: 'Dahua / Amcrest' },
-                { id: 'uniview', label: 'Uniview (UNV)' },
-                { id: 'custom', label: 'RTSP Manual' },
+                { id: 'hikvision', label: 'Hikvision' },
+                { id: 'dahua', label: 'Dahua' },
+                { id: 'uniview', label: 'Uniview' },
+                { id: 'juan', label: 'Juan' },
+                { id: 'custom', label: 'Manual' },
               ].map((p) => (
                 <button
                   type="button"

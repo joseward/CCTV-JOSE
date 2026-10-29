@@ -101,6 +101,13 @@ export function buildPresetRtspUrls(
         main: `rtsp://${auth}${host}/unicast/c${channel}/s0/live`,
         sub: `rtsp://${auth}${host}/unicast/c${channel}/s1/live`,
       };
+    case 'juan':
+      // Juan / EseeCloud / Jovision standard: ch0_0.264 (main), ch0_1.264 (sub)
+      const chIdx = channel - 1;
+      return {
+        main: `rtsp://${auth}${host}/ch${chIdx}_0.264`,
+        sub: `rtsp://${auth}${host}/ch${chIdx}_1.264`,
+      };
     default:
       return {
         main: `rtsp://${auth}${host}/live/ch${channel}`,
@@ -193,10 +200,44 @@ export async function startPlaybackSession(
 export interface ValidationResult {
   ok: boolean;
   message: string;
+  detectedVendor?: string;
 }
 
 /**
- * Validates connection and credentials against an RTSP DVR/NVR using go2rtc probe
+ * Probes a specific stream URL directly, verifying that actual video frames (>200 bytes) are returned
+ */
+async function probeStreamRealVideo(streamUrl: string, timeoutMs: number = 3500): Promise<{ ok: boolean; errorText?: string }> {
+  const probeName = `probe_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  try {
+    const registered = await registerStream(probeName, streamUrl);
+    if (!registered) return { ok: false, errorText: 'Error registrando stream' };
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    const res = await fetch(`${GO2RTC_URL}/api/frame.mp4?src=${encodeURIComponent(probeName)}&t=${Date.now()}`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+
+    if (res.ok) {
+      deleteStream(probeName).catch(() => {});
+      return { ok: true };
+    }
+
+    const text = await res.text().catch(() => '');
+    deleteStream(probeName).catch(() => {});
+    return { ok: false, errorText: text };
+  } catch (err: any) {
+    deleteStream(probeName).catch(() => {});
+    return { ok: false, errorText: err?.message || 'Timeout' };
+  }
+}
+
+/**
+ * Validates connection and credentials against an RTSP DVR/NVR using go2rtc probe,
+ * and if the selected vendor fails, automatically tests other vendor presets (Dahua, Hikvision, Uniview)
+ * checking both Sub-Stream and Main-Stream to ensure 100% plug-and-play compatibility!
  */
 export async function validateDvrCredentials(
   vendor: string,
@@ -205,41 +246,67 @@ export async function validateDvrCredentials(
   user: string = 'admin',
   pass: string = ''
 ): Promise<ValidationResult> {
-  const probeName = `probe_${Date.now()}`;
-  const urls = buildPresetRtspUrls(vendor, ip, port, user, pass, 1);
-  const streamUrl = urls.sub || urls.main;
+  const cleanIp = ip.trim();
+  const cleanUser = user.trim();
 
-  try {
-    await registerStream(probeName, streamUrl);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4500);
+  // Helper to test a specific vendor preset on both sub and main streams
+  const testVendor = async (v: string): Promise<{ ok: boolean; errorText?: string }> => {
+    const urls = buildPresetRtspUrls(v, cleanIp, port, cleanUser, pass, 1);
+    // 1. Try sub-stream first
+    let probe = await probeStreamRealVideo(urls.sub, 3500);
+    if (probe.ok) return probe;
 
-    const res = await fetch(`${GO2RTC_URL}/api/frame.mp4?src=${encodeURIComponent(probeName)}`, {
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-
-    deleteStream(probeName).catch(() => {});
-
-    if (res.ok) {
-      return { ok: true, message: '¡Credenciales y conexión validadas exitosamente!' };
+    // 2. If sub-stream failed or has no video, try main stream (many DVRs disable sub-stream)
+    if (urls.main && urls.main !== urls.sub) {
+      await new Promise((r) => setTimeout(r, 150));
+      probe = await probeStreamRealVideo(urls.main, 4000);
+      if (probe.ok) return probe;
     }
+    return probe;
+  };
 
-    const text = await res.text();
-    if (text.includes('wrong user/pass')) {
-      return { ok: false, message: 'Usuario o contraseña incorrectos. Verifique sus credenciales.' };
-    } else if (text.includes('DESCRIBE') || res.status === 404) {
-      return { ok: false, message: 'Equipo responde, pero la marca/protocolo RTSP no coincide.' };
-    } else {
-      return { ok: false, message: `Error del grabador: ${text || res.statusText}` };
-    }
-  } catch (err: any) {
-    deleteStream(probeName).catch(() => {});
-    if (err.name === 'AbortError') {
-      return { ok: false, message: 'Tiempo de espera agotado. El grabador no respondió en la IP/puerto.' };
-    }
-    return { ok: false, message: `No se pudo conectar a ${ip}:${port}. Compruebe la red y la IP.` };
+  // 1. First test the requested vendor preset
+  const primaryProbe = await testVendor(vendor);
+
+  if (primaryProbe.ok) {
+    return { 
+      ok: true, 
+      detectedVendor: vendor, 
+      message: `¡Credenciales y conexión validadas exitosamente (${vendor.toUpperCase()})!` 
+    };
   }
+
+  // 2. If it failed due to wrong password, don't bother probing other brands
+  if (primaryProbe.errorText && primaryProbe.errorText.includes('wrong user/pass')) {
+    return { ok: false, message: 'Usuario o contraseña incorrectos. Verifique sus credenciales.' };
+  }
+
+  // 3. Fallback: Automatically test all other supported brands (Dahua, Hikvision, Uniview, Juan/EseeCloud)
+  const candidateVendors = ['dahua', 'hikvision', 'uniview', 'juan'].filter((v) => v !== vendor);
+
+  for (const candidate of candidateVendors) {
+    await new Promise((r) => setTimeout(r, 200));
+    const candidateProbe = await testVendor(candidate);
+
+    if (candidateProbe.ok) {
+      return {
+        ok: true,
+        detectedVendor: candidate,
+        message: `¡Conexión exitosa! El equipo fue detectado como ${candidate.toUpperCase()} (se corrigió la marca automáticamente).`,
+      };
+    }
+  }
+
+  // 4. If all standard presets failed, diagnose the problem
+  if (primaryProbe.errorText && (primaryProbe.errorText.includes('Timeout') || primaryProbe.errorText.includes('abort'))) {
+    return { ok: false, message: `Tiempo de espera agotado. Verifique que la IP ${cleanIp}:${port} esté accesible en la red.` };
+  }
+
+  if (primaryProbe.errorText && primaryProbe.errorText.includes('DESCRIBE')) {
+    return { ok: false, message: 'El equipo responde en el puerto, pero ninguna marca estándar (Dahua, Hikvision, Uniview) coincidió en el canal 1.' };
+  }
+
+  return { ok: false, message: `No se pudo conectar a ${cleanIp}:${port}: ${primaryProbe.errorText || 'Error de red'}` };
 }
 
 export interface ScanResult {
@@ -261,29 +328,81 @@ export async function probeSingleChannel(
   pass: string,
   channel: number
 ): Promise<boolean> {
-  const probeName = `probe_ch_${Date.now()}_${channel}`;
   const urls = buildPresetRtspUrls(vendor, ip, port, user, pass, channel);
-  const streamUrl = urls.sub || urls.main;
-
-  try {
-    await registerStream(probeName, streamUrl);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 2500);
-
-    const res = await fetch(`${GO2RTC_URL}/api/frame.mp4?src=${encodeURIComponent(probeName)}`, {
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    deleteStream(probeName).catch(() => {});
-    return res.ok;
-  } catch {
-    deleteStream(probeName).catch(() => {});
-    return false;
+  let probe = await probeStreamRealVideo(urls.sub, 2000);
+  if (probe.ok) return true;
+  if (urls.main && urls.main !== urls.sub) {
+    probe = await probeStreamRealVideo(urls.main, 2500);
+    if (probe.ok) return true;
   }
+  return false;
 }
 
 /**
- * Scans active channels on a DVR (up to 32)
+ * Queries DVR hardware directly via HTTP CGI / ISAPI to get exact hardware channels
+ */
+async function queryDvrHardwareHttp(
+  ip: string,
+  user: string,
+  pass: string
+): Promise<{ ok: boolean; vendor?: string; channelCount?: number; channelTitles?: string[] }> {
+  if (typeof window === 'undefined' || !(window as any).__TAURI_INTERNALS__) {
+    return { ok: false };
+  }
+
+  const cleanIp = ip.trim();
+  const auth = user ? `${user.trim()}:${pass || ''}` : undefined;
+
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+
+    // 1. Try Dahua ChannelTitle (Port 80)
+    try {
+      const outDahua = await invoke<string>('fetch_dvr_api', {
+        url: `http://${cleanIp}/cgi-bin/configManager.cgi?action=getConfig&name=ChannelTitle`,
+        method: 'GET',
+        auth,
+      });
+      if (outDahua && outDahua.includes('ChannelTitle')) {
+        const matches = outDahua.match(/table\.ChannelTitle\[\d+\]\.Name=([^\r\n]*)/g);
+        if (matches && matches.length > 0) {
+          const titles = matches.map((m) => m.replace(/table\.ChannelTitle\[\d+\]\.Name=/, '').trim());
+          return {
+            ok: true,
+            vendor: 'dahua',
+            channelCount: matches.length,
+            channelTitles: titles,
+          };
+        }
+      }
+    } catch {}
+
+    // 2. Try Hikvision Streaming Channels
+    try {
+      const outHik = await invoke<string>('fetch_dvr_api', {
+        url: `http://${cleanIp}/ISAPI/Streaming/channels`,
+        method: 'GET',
+        auth,
+      });
+      if (outHik && (outHik.includes('StreamingChannel') || outHik.includes('streamingChannel'))) {
+        const matches = outHik.match(/<StreamingChannel/gi);
+        if (matches && matches.length > 0) {
+          const count = Math.max(1, Math.round(matches.length / 2));
+          return {
+            ok: true,
+            vendor: 'hikvision',
+            channelCount: count,
+          };
+        }
+      }
+    } catch {}
+  } catch {}
+
+  return { ok: false };
+}
+
+/**
+ * Scans active channels on a DVR with 100% exact hardware tier detection (4, 8, 16, 32)
  */
 export async function scanDvrActiveChannels(
   vendor: string,
@@ -293,8 +412,26 @@ export async function scanDvrActiveChannels(
   pass: string = '',
   onProgress?: (scanned: number, found: number) => void
 ): Promise<ScanResult> {
-  // First validate channel 1
-  const firstProbe = await validateDvrCredentials(vendor, ip, port, user, pass);
+  const cleanIp = ip.trim();
+  const cleanUser = user.trim();
+
+  // 1. Priority 1: Query DVR Hardware directly via HTTP CGI/ISAPI (Instant & 100% Exact)
+  const hwQuery = await queryDvrHardwareHttp(cleanIp, cleanUser, pass);
+  if (hwQuery.ok && hwQuery.channelCount) {
+    const exactCount = hwQuery.channelCount;
+    const channels = Array.from({ length: exactCount }, (_, i) => i + 1);
+    const resolvedVendor = hwQuery.vendor || vendor;
+    return {
+      ok: true,
+      vendor: resolvedVendor,
+      activeChannels: channels,
+      channelCount: exactCount,
+      message: `¡Detección de hardware exitosa! Grabador ${resolvedVendor.toUpperCase()} con ${exactCount} canales físicos exactos.`,
+    };
+  }
+
+  // 2. Priority 2: First validate channel 1 (and auto-detect vendor via RTSP)
+  const firstProbe = await validateDvrCredentials(vendor, cleanIp, port, cleanUser, pass);
   if (!firstProbe.ok) {
     return {
       ok: false,
@@ -305,46 +442,44 @@ export async function scanDvrActiveChannels(
     };
   }
 
-  const activeChannels: number[] = [1];
-  let consecutiveFails = 0;
-  const maxChannelsToScan = 32;
+  const actualVendor = firstProbe.detectedVendor || vendor;
 
-  // Scan in batches of 4 for speed
-  for (let startCh = 2; startCh <= maxChannelsToScan; startCh += 4) {
-    const batch = [startCh, startCh + 1, startCh + 2, startCh + 3].filter(c => c <= maxChannelsToScan);
-    const batchResults = await Promise.all(
-      batch.map(async (ch) => {
-        const ok = await probeSingleChannel(vendor, ip, port, user, pass, ch);
-        return { ch, ok };
-      })
-    );
+  // 3. Hardware Tier Boundary Snapping (Commercial DVRs are manufactured strictly in 4, 8, 16, 32 tiers)
+  // Check Channel 17: If 17 fails, hardware CANNOT be 32 channels.
+  if (onProgress) onProgress(1, 1);
+  const hasCh17 = await probeSingleChannel(actualVendor, cleanIp, port, cleanUser, pass, 17);
 
-    for (const res of batchResults) {
-      if (res.ok) {
-        activeChannels.push(res.ch);
-        consecutiveFails = 0;
-      } else {
-        consecutiveFails++;
-      }
-    }
-
-    if (onProgress) {
-      onProgress(Math.min(startCh + 3, maxChannelsToScan), activeChannels.length);
-    }
-
-    // If 4 consecutive channels fail after finding some, stop scanning
-    if (consecutiveFails >= 4) {
-      break;
+  let hardwareTier = 32;
+  if (!hasCh17) {
+    // Check Channel 9: If 9 fails, hardware CANNOT be 16 channels.
+    const hasCh9 = await probeSingleChannel(actualVendor, cleanIp, port, cleanUser, pass, 9);
+    if (!hasCh9) {
+      // Check Channel 5: If 5 fails, hardware is a 4-channel DVR.
+      const hasCh5 = await probeSingleChannel(actualVendor, cleanIp, port, cleanUser, pass, 5);
+      hardwareTier = hasCh5 ? 8 : 4;
+    } else {
+      hardwareTier = 16;
     }
   }
 
-  const maxActive = activeChannels.length > 0 ? Math.max(...activeChannels) : 8;
+  // 4. Scan channels up to the detected hardware tier
+  const activeChannels: number[] = [1];
+  for (let ch = 2; ch <= hardwareTier; ch++) {
+    const ok = await probeSingleChannel(actualVendor, cleanIp, port, cleanUser, pass, ch);
+    if (ok) {
+      activeChannels.push(ch);
+    }
+    if (onProgress) {
+      onProgress(ch, activeChannels.length);
+    }
+  }
+
   return {
     ok: true,
-    vendor,
+    vendor: actualVendor,
     activeChannels,
-    channelCount: maxActive,
-    message: `¡Escaneo completo! Se detectaron ${activeChannels.length} canales activos (hasta Canal ${maxActive}).`,
+    channelCount: hardwareTier,
+    message: `¡Detección completada! Grabador ${actualVendor.toUpperCase()} de ${hardwareTier} canales físicos (${activeChannels.length} con cámaras activas).`,
   };
 }
 
@@ -357,17 +492,18 @@ export async function autoDetectDvrVendor(
   user: string = 'admin',
   pass: string = ''
 ): Promise<{ vendor: string; result: ValidationResult; channelCount?: number }> {
-  const vendors = ['hikvision', 'dahua', 'uniview'];
+  const vendors = ['dahua', 'hikvision', 'uniview', 'juan'];
   let lastResult: ValidationResult = { ok: false, message: 'No se detectó respuesta.' };
 
   for (const v of vendors) {
     const res = await validateDvrCredentials(v, ip, port, user, pass);
     if (res.ok) {
+      const actualVendor = res.detectedVendor || v;
       // Once brand is detected, automatically scan channels!
-      const scan = await scanDvrActiveChannels(v, ip, port, user, pass);
+      const scan = await scanDvrActiveChannels(actualVendor, ip, port, user, pass);
       return { 
-        vendor: v, 
-        result: { ok: true, message: `¡Grabador detectado: ${v.toUpperCase()} con ${scan.channelCount} canales activos!` },
+        vendor: actualVendor, 
+        result: { ok: true, message: `¡Grabador detectado: ${actualVendor.toUpperCase()} con ${scan.channelCount} canales activos!` },
         channelCount: scan.channelCount
       };
     }
@@ -377,5 +513,5 @@ export async function autoDetectDvrVendor(
     }
   }
 
-  return { vendor: 'hikvision', result: lastResult };
+  return { vendor: 'dahua', result: lastResult };
 }

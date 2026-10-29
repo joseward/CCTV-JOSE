@@ -64,6 +64,7 @@ import {
   saveAppSettings 
 } from './services/notifications';
 import { auditAllDvrsAndNotify } from './services/watchdog';
+import { checkAppUpdate } from './services/updater';
 import { Plus, AlertCircle } from 'lucide-react';
 
 export function App() {
@@ -90,6 +91,35 @@ export function App() {
   } | null>(null);
   const [isCameraModalOpen, setIsCameraModalOpen] = useState<boolean>(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false);
+  const [settingsModalTab, setSettingsModalTab] = useState<'dvrs' | 'channels' | 'notifications' | 'updates'>('dvrs');
+  const [pendingUpdateVersion, setPendingUpdateVersion] = useState<string | null>(null);
+
+  // Background check for updates once a day
+  useEffect(() => {
+    let isMounted = true;
+    const runDailyUpdateCheck = async () => {
+      try {
+        const lastCheck = localStorage.getItem('cctv_daily_update_check_time');
+        const now = Date.now();
+        // Check if more than 24 hours have passed (or first check)
+        if (!lastCheck || now - parseInt(lastCheck) > 24 * 60 * 60 * 1000) {
+          const res = await checkAppUpdate();
+          localStorage.setItem('cctv_daily_update_check_time', now.toString());
+          if (isMounted && res.available && res.version) {
+            setPendingUpdateVersion(res.version);
+          }
+        }
+      } catch (err) {
+        // Silent catch for background check
+      }
+    };
+
+    const timer = setTimeout(runDailyUpdateCheck, 15000); // 15s after startup
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, []);
   const [isPlaybackModalOpen, setIsPlaybackModalOpen] = useState<boolean>(false);
   const [playbackCameraId, setPlaybackCameraId] = useState<string | null>(null);
   const [cameraToEdit, setCameraToEdit] = useState<Camera | null>(null);
@@ -493,7 +523,10 @@ export function App() {
           setMaximizedCameraId(null);
           setGridMode(mode);
         }}
-        onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
+        onOpenSettingsModal={() => {
+          setSettingsModalTab('dvrs');
+          setIsSettingsModalOpen(true);
+        }}
         onOpenPlaybackModal={() => {
           const currentCam = maximizedCameraId || (selectedSlotIndex !== null ? slots[selectedSlotIndex] : null);
           setPlaybackCameraId(currentCam);
@@ -505,6 +538,27 @@ export function App() {
         activeStreamsCount={activeStreamsCount}
         onClearGrid={handleClearGrid}
       />
+
+      {/* Background Update Available Alert Banner */}
+      {pendingUpdateVersion && (
+        <div className="bg-purple-950/95 border-b border-purple-700/60 text-purple-200 px-4 py-2 text-xs flex items-center justify-between z-20 animate-in slide-in-from-top">
+          <div className="flex items-center space-x-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-purple-400 animate-pulse" />
+            <span>
+              <strong>Nueva actualización disponible:</strong> La versión <strong>v{pendingUpdateVersion}</strong> está lista para instalar.
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              setSettingsModalTab('updates');
+              setIsSettingsModalOpen(true);
+            }}
+            className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold shadow transition"
+          >
+            Actualizar Ahora
+          </button>
+        </div>
+      )}
 
       {/* Engine Alert Banner if go2rtc is offline */}
       {!go2rtcReady && (
@@ -652,6 +706,7 @@ export function App() {
           }}
           appSettings={appSettings}
           onUpdateSettings={handleUpdateSettings}
+          initialTab={settingsModalTab}
         />
       </ErrorBoundary>
 

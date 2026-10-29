@@ -197,6 +197,9 @@ export const DvrModal: React.FC<DvrModalProps> = ({
     setValMsg(`Verificando credenciales en ${ip}:${port} (${vendorPreset.toUpperCase()})...`);
 
     const res = await validateDvrCredentials(vendorPreset, ip.trim(), port, username.trim(), password);
+    if (res.detectedVendor && res.detectedVendor !== vendorPreset) {
+      setVendorPreset(res.detectedVendor as VendorPreset);
+    }
     if (res.ok) {
       setValState('success');
       setValMsg(res.message);
@@ -270,7 +273,7 @@ export const DvrModal: React.FC<DvrModalProps> = ({
     if (scan.ok) {
       setChannelCount(scan.channelCount);
       setValState('success');
-      setValMsg(`¡Detección completada! ${scan.activeChannels.length} canales activos encontrados (1 al ${scan.channelCount}).`);
+      setValMsg(scan.message);
     } else {
       setValState('error');
       setValMsg(scan.message);
@@ -366,11 +369,12 @@ export const DvrModal: React.FC<DvrModalProps> = ({
                 <span>Auto-Detectar Marca</span>
               </button>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {[
                 { id: 'dahua', label: 'Dahua / Amcrest' },
                 { id: 'hikvision', label: 'Hikvision / Hilook' },
                 { id: 'uniview', label: 'Uniview (UNV)' },
+                { id: 'juan', label: 'Juan / EseeCloud' },
               ].map((p) => (
                 <button
                   type="button"

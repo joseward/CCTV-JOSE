@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Camera, VendorPreset } from '../types/cctv';
 import { INITIAL_CAMERAS } from '../services/storage';
-import { getActiveStreams, checkGo2RtcHealth, validateDvrCredentials } from '../services/go2rtc';
+import { getActiveStreams, checkGo2RtcHealth, validateDvrCredentials, buildPresetRtspUrls } from '../services/go2rtc';
 import { 
   type AppSettings, 
   sendWhatsAppNotification, 
@@ -20,7 +20,6 @@ import {
   Download, 
   Upload, 
   RotateCcw, 
-  HardDrive, 
   Cpu, 
   Radio, 
   Plus,
@@ -38,7 +37,8 @@ import {
   Power,
   Smartphone,
   Check,
-  QrCode
+  QrCode,
+  MessageSquare
 } from 'lucide-react';
 
 export interface DvrSummary {
@@ -64,6 +64,7 @@ interface SettingsModalProps {
   onEditCamera?: (camera: Camera) => void;
   appSettings: AppSettings;
   onUpdateSettings: (settings: AppSettings) => void;
+  initialTab?: 'dvrs' | 'channels' | 'notifications' | 'updates';
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -77,14 +78,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onOpenMaintenance,
   appSettings,
   onUpdateSettings,
+  initialTab = 'dvrs',
 }) => {
-  const [viewTab, setViewTab] = useState<'dvrs' | 'channels' | 'notifications' | 'updates'>('dvrs');
+  const [viewTab, setViewTab] = useState<'dvrs' | 'channels' | 'notifications' | 'updates'>(initialTab);
+
+  useEffect(() => {
+    if (isOpen && initialTab) {
+      setViewTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState<boolean>(false);
   const [installingUpdate, setInstallingUpdate] = useState<boolean>(false);
   const [updateMsg, setUpdateMsg] = useState<string | null>(null);
   const [filterGroup, setFilterGroup] = useState<string>('all');
-  const [configFilePath, setConfigFilePath] = useState<string>('cameras.json');
+  const [_configFilePath, setConfigFilePath] = useState<string>('cameras.json');
   const [go2rtcOnline, setGo2RtcOnline] = useState<boolean>(true);
   const [activeStreamsCount, setActiveStreamsCount] = useState<number>(0);
   const [importStatus, setImportStatus] = useState<string | null>(null);
@@ -215,7 +223,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setExpandedDvrs((prev) => ({ ...prev, [groupName]: !prev[groupName] }));
   };
 
-  // Test live connection of a DVR
+  // Test live connection of a DVR and auto-correct vendor preset if mismatch detected
   const handleTestDvr = async (dvr: DvrSummary) => {
     setTestingDvr(dvr.groupName);
     const res = await validateDvrCredentials(
@@ -225,6 +233,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       dvr.username,
       dvr.password || ''
     );
+
+    if (res.ok && res.detectedVendor && res.detectedVendor !== dvr.vendorPreset) {
+      const correctedPreset = res.detectedVendor as VendorPreset;
+      const updated = cameras.map((c) => {
+        if (c.group === dvr.groupName) {
+          const urls = buildPresetRtspUrls(correctedPreset, c.ip, c.port, c.username, c.password, c.channel);
+          return {
+            ...c,
+            vendorPreset: correctedPreset,
+            mainStreamUrl: urls.main,
+            subStreamUrl: urls.sub,
+          };
+        }
+        return c;
+      });
+      onUpdateCameras(updated);
+    }
+
     setDvrStatusMap((prev) => ({
       ...prev,
       [dvr.groupName]: { ok: res.ok, msg: res.message },
@@ -383,16 +409,57 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
+
+          {/* Minimalist Top Action Buttons */}
+          <div className="flex items-center space-x-2">
+            {/* WhatsApp Alerts Icon Button */}
+            <button
+              type="button"
+              onClick={() => setViewTab(viewTab === 'notifications' ? 'dvrs' : 'notifications')}
+              className={`p-2 rounded-lg border transition relative flex items-center justify-center ${
+                viewTab === 'notifications'
+                  ? 'bg-emerald-600/30 text-emerald-400 border-emerald-500/60 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
+                  : 'bg-slate-900 text-slate-400 hover:text-white border-slate-800 hover:border-slate-700'
+              }`}
+              title="Vincular WhatsApp y Alertas"
+            >
+              <MessageSquare className="w-4 h-4" />
+              {waStatus.connected && (
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-slate-950" />
+              )}
+            </button>
+
+            {/* Updates Center Icon Button */}
+            <button
+              type="button"
+              onClick={() => setViewTab(viewTab === 'updates' ? 'dvrs' : 'updates')}
+              className={`p-2 rounded-lg border transition relative flex items-center justify-center ${
+                viewTab === 'updates'
+                  ? 'bg-purple-600/30 text-purple-400 border-purple-500/60 shadow-[0_0_12px_rgba(168,85,247,0.25)]'
+                  : 'bg-slate-900 text-slate-400 hover:text-white border-slate-800 hover:border-slate-700'
+              }`}
+              title="Centro de Actualizaciones"
+            >
+              <RefreshCw className={`w-4 h-4 ${checkingUpdate ? 'animate-spin text-purple-400' : ''}`} />
+              {updateStatus?.available && (
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-purple-400 ring-2 ring-slate-950 animate-pulse" />
+              )}
+            </button>
+
+            <div className="h-5 w-[1px] bg-slate-800 mx-1" />
+
+            <button
+              onClick={onClose}
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+              title="Cerrar ajustes"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Diagnostic Bar */}
-        <div className="px-6 py-2.5 bg-slate-950/90 border-b border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+        <div className="px-6 py-2 bg-slate-950/90 border-b border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-1.5">
               <Cpu className="w-3.5 h-3.5 text-slate-400" />
@@ -407,11 +474,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <Radio className="w-3.5 h-3.5 text-blue-400" />
               <span>Flujos Activos:</span>
               <strong className="text-white">{activeStreamsCount}</strong>
-            </div>
-
-            <div className="flex items-center space-x-1.5 font-mono text-[11px] text-slate-500 truncate max-w-xs" title={configFilePath}>
-              <HardDrive className="w-3.5 h-3.5" />
-              <span className="truncate">{configFilePath}</span>
             </div>
           </div>
 
@@ -449,30 +511,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               >
                 <Video className="w-3.5 h-3.5" />
                 <span>Todos los Canales ({cameras.length})</span>
-              </button>
-
-              <button
-                onClick={() => setViewTab('notifications')}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg font-bold transition ${
-                  viewTab === 'notifications'
-                    ? 'bg-blue-600 text-white shadow'
-                    : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
-                }`}
-              >
-                <Bell className="w-3.5 h-3.5 text-amber-400" />
-                <span>🔔 Monitoreo & WhatsApp</span>
-              </button>
-
-              <button
-                onClick={() => setViewTab('updates')}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg font-bold transition ${
-                  viewTab === 'updates'
-                    ? 'bg-purple-600 text-white shadow'
-                    : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
-                }`}
-              >
-                <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
-                <span>🔄 Actualizaciones GitHub</span>
               </button>
             </div>
 
@@ -772,37 +810,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 {localSettings.whatsappEnabled && (
                   <div className="space-y-4 pt-2 border-t border-slate-800/80 animate-in fade-in">
-                    {/* Provider Selection */}
-                    <div>
-                      <label className="block text-[11px] text-slate-400 font-semibold mb-1">
-                        Método de Envío:
-                      </label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {[
-                          { id: 'gateway', label: '⭐ Gateway Local QR (Recomendado / Cada Sucursal)', desc: 'Sin costo ni bots de terceros. Escanea el QR.' },
-                          { id: 'callmebot', label: 'CallMeBot (Público)', desc: 'Bot externo por API Key' },
-                          { id: 'webhook', label: 'Webhook Personalizado', desc: 'Endpoint HTTP / URL a medida' },
-                        ].map((prov) => (
-                          <button
-                            key={prov.id}
-                            type="button"
-                            onClick={() => setLocalSettings({ ...localSettings, whatsappProvider: prov.id as any })}
-                            className={`p-2.5 rounded-lg border text-left text-[11px] transition flex flex-col justify-between ${
-                              localSettings.whatsappProvider === prov.id
-                                ? 'bg-emerald-950/50 border-emerald-500 text-emerald-300 font-bold'
-                                : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
-                            }`}
-                          >
-                            <span>{prov.label}</span>
-                            <span className="text-[10px] text-slate-500 font-normal mt-0.5">{prov.desc}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* GATEWAY LOCAL QR SECTION */}
-                    {localSettings.whatsappProvider === 'gateway' && (
-                      <div className="space-y-3">
+                    {/* Gateway Local QR Section */}
+                    <div className="space-y-3">
                         {waStatus.connected ? (
                           /* Connected State */
                           <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/40 flex items-center justify-between">
@@ -881,7 +890,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           </div>
                         )}
                       </div>
-                    )}
 
                     {/* Inputs */}
                     <div className="space-y-3 pt-1">
@@ -1005,57 +1013,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             Segundo receptor (ej. Dueño, Director o Técnico de soporte)
                           </span>
                         </div>
-                      </div>
-
-                      {/* Providers Specific / Advanced */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                        {localSettings.whatsappProvider === 'callmebot' && (
-                          <div>
-                            <label className="block text-[11px] text-slate-400 font-semibold mb-1">
-                              CallMeBot API Key:
-                            </label>
-                            <input
-                              type="password"
-                              value={localSettings.apiKey}
-                              onChange={(e) => setLocalSettings({ ...localSettings, apiKey: e.target.value })}
-                              placeholder="Ej. 123456"
-                              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-emerald-500"
-                            />
-                          </div>
-                        )}
-
-                        {localSettings.whatsappProvider === 'webhook' && (
-                          <div>
-                            <label className="block text-[11px] text-slate-400 font-semibold mb-1">
-                              URL de Webhook Personalizado:
-                            </label>
-                            <input
-                              type="text"
-                              value={localSettings.gatewayUrl}
-                              onChange={(e) => setLocalSettings({ ...localSettings, gatewayUrl: e.target.value })}
-                              placeholder="https://api.tuservidor.com/alert?to={{phone}}&msg={{message}}"
-                              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-emerald-500"
-                            />
-                          </div>
-                        )}
-
-                        {localSettings.whatsappProvider === 'gateway' && (
-                          <div className="col-span-2">
-                            <label className="block text-[11px] text-slate-400 font-semibold mb-1">
-                              URL del Gateway WhatsApp (Ajuste Avanzado):
-                            </label>
-                            <input
-                              type="text"
-                              value={localSettings.gatewayUrl}
-                              onChange={(e) => setLocalSettings({ ...localSettings, gatewayUrl: e.target.value })}
-                              placeholder="http://127.0.0.1:8120/message/sendText"
-                              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-300 font-mono text-xs focus:outline-none focus:border-emerald-500"
-                            />
-                            <span className="text-[10px] text-slate-500 block mt-0.5">
-                              Por defecto: <code className="text-slate-400">http://127.0.0.1:8120/message/sendText</code> (Gateway local integrado)
-                            </span>
-                          </div>
-                        )}
                       </div>
                     </div>
 
@@ -1234,88 +1191,69 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           )}
 
-          {/* TAB 4: Software Updates (GitHub Releases) */}
+          {/* TAB 4: Software Updates */}
           {viewTab === 'updates' && (
-            <div className="space-y-4 animate-in fade-in duration-150">
-              {/* Header card */}
-              <div className="p-4 rounded-xl border border-purple-800/40 bg-purple-950/20 space-y-2">
-                <div className="flex items-center space-x-2 text-purple-300 font-bold text-sm">
-                  <RefreshCw className="w-4 h-4 text-purple-400" />
-                  <span>Actualizaciones del Sistema (GitHub Releases)</span>
+            <div className="space-y-4 animate-in fade-in duration-150 max-w-xl mx-auto py-2">
+              <div className="p-6 rounded-2xl border border-slate-800 bg-slate-950/70 text-center space-y-4 shadow-xl">
+                <div className="w-12 h-12 mx-auto rounded-2xl bg-purple-600/10 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-inner">
+                  <RefreshCw className={`w-6 h-6 ${checkingUpdate ? 'animate-spin' : ''}`} />
                 </div>
-                <p className="text-xs text-slate-300">
-                  Las actualizaciones se distribuyen con firma criptográfica digital Ed25519 a través del repositorio oficial de GitHub.
-                </p>
-                <div className="pt-2 flex flex-wrap items-center gap-4 text-xs font-mono">
-                  <div className="flex items-center space-x-1.5 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
-                    <span className="text-slate-400">Versión Instalada:</span>
-                    <strong className="text-emerald-400">{updateStatus?.currentVersion || 'v1.0.0'}</strong>
-                  </div>
-                  <div className="flex items-center space-x-1.5 bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-800">
-                    <span className="text-slate-400">Repositorio:</span>
-                    <strong className="text-purple-300">github.com/joseward/CCTV-JOSE</strong>
-                  </div>
-                </div>
-              </div>
 
-              {/* Action Box */}
-              <div className="p-5 rounded-xl border border-slate-800 bg-slate-950/60 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-xs font-bold text-white tracking-wide">Buscar Nuevas Versiones</h4>
-                    <p className="text-[11px] text-slate-400">
-                      Comprueba si existe un nuevo instalador o versión publicada en el repositorio.
-                    </p>
-                  </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Actualización del Sistema</h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Versión instalada: <strong className="text-emerald-400 font-mono text-sm">{updateStatus?.currentVersion || 'v1.1.0'}</strong>
+                  </p>
+                </div>
+
+                {/* Primary Action Button */}
+                <div className="pt-1">
                   <button
                     type="button"
                     onClick={handleCheckUpdate}
                     disabled={checkingUpdate || installingUpdate}
-                    className="flex items-center space-x-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-800 text-white font-bold rounded-lg shadow-lg transition"
+                    className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2 mx-auto"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${checkingUpdate ? 'animate-spin' : ''}`} />
-                    <span>{checkingUpdate ? 'Comprobando...' : '🔍 Buscar Actualizaciones Ahora'}</span>
+                    <span>{checkingUpdate ? 'Buscando actualizaciones...' : 'Buscar Actualizaciones'}</span>
                   </button>
                 </div>
 
-                {/* Status messages */}
-                {updateMsg && (
-                  <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-200">
+                {/* Status message */}
+                {updateMsg && !updateStatus?.available && (
+                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs font-semibold text-slate-300">
                     {updateMsg}
                   </div>
                 )}
 
                 {/* Update Available Card */}
                 {updateStatus?.available && (
-                  <div className="p-4 rounded-xl border border-emerald-500/50 bg-emerald-950/20 space-y-3 animate-in zoom-in-95">
+                  <div className="p-5 rounded-xl border border-emerald-500/50 bg-emerald-950/20 text-left space-y-3 animate-in zoom-in-95">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2 text-emerald-400 font-bold">
                         <CheckCircle className="w-5 h-5 text-emerald-400" />
                         <span>¡Nueva versión disponible: v{updateStatus.version}!</span>
                       </div>
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/40">
-                        ACTUALIZACIÓN LISTA
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/40">
+                        LISTA PARA INSTALAR
                       </span>
                     </div>
 
                     {updateStatus.body && (
-                      <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-3 text-slate-300 text-xs font-mono whitespace-pre-wrap">
+                      <div className="bg-slate-900/90 border border-slate-800 rounded-lg p-3 text-slate-300 text-xs whitespace-pre-wrap">
                         {updateStatus.body}
                       </div>
                     )}
 
-                    <div className="pt-2 flex items-center justify-between">
-                      <span className="text-[11px] text-slate-400">
-                        Al pulsar instalar, la app descargará la actualización, la verificará y se reiniciará automáticamente.
-                      </span>
+                    <div className="pt-2 flex items-center justify-end">
                       <button
                         type="button"
                         onClick={handleInstallUpdate}
                         disabled={installingUpdate}
-                        className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 text-white font-bold rounded-lg shadow-lg transition"
+                        className="flex items-center space-x-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 text-white font-bold rounded-xl shadow-lg transition text-xs"
                       >
                         <Download className="w-4 h-4" />
-                        <span>{installingUpdate ? 'Instalando y Reiniciando...' : 'Descargar e Instalar Ahora'}</span>
+                        <span>{installingUpdate ? 'Instalando y Reiniciando...' : 'Descargar e Instalar'}</span>
                       </button>
                     </div>
                   </div>

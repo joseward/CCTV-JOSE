@@ -131,7 +131,7 @@ fn is_port_in_use(port: u16) -> bool {
 
 #[tauri::command]
 fn start_go2rtc(state: State<AppState>) -> Result<String, String> {
-    if is_port_in_use(1984) {
+    if check_go2rtc_running() {
         return Ok("go2rtc ya está en ejecución".to_string());
     }
 
@@ -142,6 +142,8 @@ fn start_go2rtc(state: State<AppState>) -> Result<String, String> {
     if let Some(parent) = bin_path.parent() {
         cmd.current_dir(parent);
     }
+    cmd.stdout(std::process::Stdio::null());
+    cmd.stderr(std::process::Stdio::null());
 
     #[cfg(windows)]
     {

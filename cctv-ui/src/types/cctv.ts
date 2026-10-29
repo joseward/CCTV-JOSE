@@ -1,4 +1,4 @@
-export type VendorPreset = 'hikvision' | 'dahua' | 'uniview' | 'custom' | 'demo';
+export type VendorPreset = 'hikvision' | 'dahua' | 'uniview' | 'juan' | 'custom' | 'demo';
 
 export type AspectRatio = '16:9' | '4:3' | 'fill' | 'contain';
 
