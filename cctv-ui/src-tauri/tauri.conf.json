@@ -46,7 +46,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQxMTM5ODZCNTY0NDFCNjkKUldScEcwUldhNWdUUWFmMkVlWldYNWRuVmtmTUNVQ2l4bGVaemEyK0Z4VW5KeGNvSlRzenlnWDUK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM1RTczNjkzQzI2RkRFMTgKUldRWTNtL0NremJuTmJTcUlGY0tCODFlN2VXcmF0Vk5uenJjc0tFeVA4WlpWZkkxZXZSdkJ6SUsK",
       "endpoints": [
         "https://github.com/joseward/CCTV-JOSE/releases/latest/download/latest.json"
       ]
