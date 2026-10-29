@@ -1,0 +1,33 @@
+# Node & JavaScript dependencies
+node_modules/
+*/node_modules/
+package-lock.json
+npm-debug.log*
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Rust build artifacts (can be several GBs)
+target/
+src-tauri/target/
+cctv-ui/src-tauri/target/
+cctv-ui/dist/
+
+# WhatsApp private session credentials & QR
+whatsapp-gateway/auth_info_baileys/
+
+# Local sensitive configuration and logs
+cameras.json
+settings.json
+*.log
+stderr.txt
+stdout.txt
+pb_frame.jpg
+test_frame.jpg
+
+# Cryptographic signing keys (NEVER push private keys!)
+*.key
+
+# Compiled local binaries
+cctv-viewer.exe

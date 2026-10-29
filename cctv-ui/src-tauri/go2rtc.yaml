@@ -1,0 +1,294 @@
+api:
+  listen: ":1984"
+  origin: "*"
+
+rtsp:
+  listen: ":8554"
+
+webrtc:
+  listen: ":8555"
+streams:
+  cam_cam-01_main:
+    - rtsp://192.168.1.100:554/Streaming/Channels/101
+  cam_cam-01_sub:
+    - rtsp://192.168.1.100:554/Streaming/Channels/102
+  cam_cam-02_main:
+    - rtsp://192.168.1.100:554/Streaming/Channels/201
+  cam_cam-02_sub:
+    - rtsp://192.168.1.100:554/Streaming/Channels/202
+  cam_cam-03_main:
+    - rtsp://192.168.1.101:554/cam/realmonitor?channel=1&subtype=0
+  cam_cam-03_sub:
+    - rtsp://192.168.1.101:554/cam/realmonitor?channel=1&subtype=1
+  cam_cam-04_main:
+    - rtsp://192.168.1.101:554/cam/realmonitor?channel=2&subtype=0
+  cam_cam-04_sub:
+    - rtsp://192.168.1.101:554/cam/realmonitor?channel=2&subtype=1
+  cam_cam-05_main:
+    - rtsp://192.168.1.102:554/unicast/c1/s0/live
+  cam_cam-05_sub:
+    - rtsp://192.168.1.102:554/unicast/c1/s1/live
+  cam_cam-06_main:
+    - rtsp://192.168.1.105:554/live/server_main
+  cam_cam-06_sub:
+    - rtsp://192.168.1.105:554/live/server_sub
+  cam_cam-07_main:
+    - rtsp://192.168.1.100:554/Streaming/Channels/301
+  cam_cam-07_sub:
+    - rtsp://192.168.1.100:554/Streaming/Channels/302
+  cam_cam-08_main:
+    - rtsp://192.168.1.100:554/Streaming/Channels/401
+  cam_cam-08_sub:
+    - rtsp://192.168.1.100:554/Streaming/Channels/402
+  test_probe:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/301
+  cam_cam-1793139862334_main:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=1&subtype=0
+  cam_cam-1793139862334_sub:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=1&subtype=1
+  cam_cam-1793140232431_main:
+    - rtsp://admin:Sisply%40983560@192.168.40.108:554/cam/realmonitor?channel=1&subtype=0
+  cam_cam-1793140232431_sub:
+    - rtsp://admin:Sisply%40983560@192.168.40.108:554/cam/realmonitor?channel=1&subtype=1
+  cam_cam-1793140420973_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/cam/realmonitor?channel=1&subtype=0
+  cam_cam-1793140420973_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/cam/realmonitor?channel=1&subtype=1
+  test_unencoded:
+    - rtsp://admin:Sisply@271569@192.168.2.9:554/Streaming/Channels/301
+  test_encoded:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/301
+  hik_test:
+    - rtsp://admin:Sisply@271569@192.168.2.9:554/Streaming/Channels/301
+  hik_test_pct:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/301
+  dahua_encoded:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=1&subtype=1
+  dahua_live:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=1&subtype=1
+  test_dahua_ok:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=1&subtype=1
+  test_hik_ok:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/101
+  test_dahua2_ok:
+    - rtsp://admin:Sisply%40983560@192.168.40.108:554/cam/realmonitor?channel=1&subtype=1
+  auto_probe:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/cam/realmonitor?channel=1&subtype=0
+  cam_dvr1-ch1_main:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=1&subtype=0
+  cam_dvr1-ch1_sub:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=1&subtype=1
+  cam_dvr1-ch2_main:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=2&subtype=0
+  cam_dvr1-ch2_sub:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=2&subtype=1
+  cam_dvr1-ch3_main:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=3&subtype=0
+  cam_dvr1-ch3_sub:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=3&subtype=1
+  cam_dvr1-ch4_main:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=4&subtype=0
+  cam_dvr1-ch4_sub:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=4&subtype=1
+  cam_dvr1-ch5_main:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=5&subtype=0
+  cam_dvr1-ch5_sub:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=5&subtype=1
+  cam_dvr1-ch6_main:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=6&subtype=0
+  cam_dvr1-ch6_sub:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=6&subtype=1
+  cam_dvr1-ch7_main:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=7&subtype=0
+  cam_dvr1-ch7_sub:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=7&subtype=1
+  cam_dvr1-ch8_main:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=8&subtype=0
+  cam_dvr1-ch8_sub:
+    - rtsp://admin:Sisply%40291564@192.168.2.113:554/cam/realmonitor?channel=8&subtype=1
+  cam_dvr2-ch1_main:
+    - rtsp://admin:Sisply%40983560@192.168.40.108:554/cam/realmonitor?channel=1&subtype=0
+  cam_dvr2-ch1_sub:
+    - rtsp://admin:Sisply%40983560@192.168.40.108:554/cam/realmonitor?channel=1&subtype=1
+  cam_dvr2-ch2_main:
+    - rtsp://admin:Sisply%40983560@192.168.40.108:554/cam/realmonitor?channel=2&subtype=0
+  cam_dvr2-ch2_sub:
+    - rtsp://admin:Sisply%40983560@192.168.40.108:554/cam/realmonitor?channel=2&subtype=1
+  cam_dvr2-ch3_main:
+    - rtsp://admin:Sisply%40983560@192.168.40.108:554/cam/realmonitor?channel=3&subtype=0
+  cam_dvr2-ch3_sub:
+    - rtsp://admin:Sisply%40983560@192.168.40.108:554/cam/realmonitor?channel=3&subtype=1
+  cam_dvr2-ch4_main:
+    - rtsp://admin:Sisply%40983560@192.168.40.108:554/cam/realmonitor?channel=4&subtype=0
+  cam_dvr2-ch4_sub:
+    - rtsp://admin:Sisply%40983560@192.168.40.108:554/cam/realmonitor?channel=4&subtype=1
+  cam_dvr2-ch7_main:
+    - rtsp://admin:Sisply%40983560@192.168.40.108:554/cam/realmonitor?channel=7&subtype=0
+  cam_dvr2-ch7_sub:
+    - rtsp://admin:Sisply%40983560@192.168.40.108:554/cam/realmonitor?channel=7&subtype=1
+  cam_dvr2-ch8_main:
+    - rtsp://admin:Sisply%40983560@192.168.40.108:554/cam/realmonitor?channel=8&subtype=0
+  cam_dvr2-ch8_sub:
+    - rtsp://admin:Sisply%40983560@192.168.40.108:554/cam/realmonitor?channel=8&subtype=1
+  cam_dvr3-ch1_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/101
+  cam_dvr3-ch1_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/102
+  cam_dvr3-ch2_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/201
+  cam_dvr3-ch2_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/202
+  cam_dvr3-ch3_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/301
+  cam_dvr3-ch3_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/302
+  cam_dvr3-ch4_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/401
+  cam_dvr3-ch4_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/402
+  cam_dvr3-ch5_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/501
+  cam_dvr3-ch5_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/502
+  cam_dvr3-ch6_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/601
+  cam_dvr3-ch6_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/602
+  cam_dvr3-ch7_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/701
+  cam_dvr3-ch7_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/702
+  cam_dvr3-ch8_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/801
+  cam_dvr3-ch8_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/802
+  cam_cam-1793149274816-ch9_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/901
+  cam_cam-1793149274816-ch9_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/902
+  cam_cam-1793149274816-ch10_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1001
+  cam_cam-1793149274816-ch10_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1002
+  cam_cam-1793149274816-ch11_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1101
+  cam_cam-1793149274816-ch11_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1102
+  cam_cam-1793149274816-ch12_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1201
+  cam_cam-1793149274816-ch12_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1202
+  cam_cam-1793149274816-ch13_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1301
+  cam_cam-1793149274816-ch13_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1302
+  cam_cam-1793149274816-ch14_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1401
+  cam_cam-1793149274816-ch14_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1402
+  cam_cam-1793149274816-ch15_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1501
+  cam_cam-1793149274816-ch15_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1502
+  cam_cam-1793149274816-ch16_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1601
+  cam_cam-1793149274816-ch16_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1602
+  test_hik_ch1:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/102
+  cam_dvr3-ch9_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/901
+  cam_dvr3-ch9_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/902
+  cam_dvr3-ch10_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1001
+  cam_dvr3-ch10_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1002
+  cam_dvr3-ch11_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1101
+  cam_dvr3-ch11_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1102
+  cam_cam-1793150645628-ch12_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1201
+  cam_cam-1793150645628-ch12_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1202
+  cam_cam-1793150645628-ch13_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1301
+  cam_cam-1793150645628-ch13_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1302
+  cam_cam-1793150645628-ch14_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1401
+  cam_cam-1793150645628-ch14_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1402
+  cam_cam-1793150645628-ch15_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1501
+  cam_cam-1793150645628-ch15_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1502
+  cam_cam-1793150645628-ch16_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1601
+  cam_cam-1793150645628-ch16_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1602
+  cam_cam-1793150645628-ch17_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1701
+  cam_cam-1793150645628-ch17_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1702
+  cam_cam-1793150645628-ch18_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1801
+  cam_cam-1793150645628-ch18_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1802
+  cam_cam-1793150645628-ch19_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1901
+  cam_cam-1793150645628-ch19_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/1902
+  cam_cam-1793150645628-ch20_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/2001
+  cam_cam-1793150645628-ch20_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/2002
+  cam_cam-1793150645628-ch21_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/2101
+  cam_cam-1793150645628-ch21_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/2102
+  cam_cam-1793150645628-ch22_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/2201
+  cam_cam-1793150645628-ch22_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/2202
+  cam_cam-1793150645628-ch23_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/2301
+  cam_cam-1793150645628-ch23_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/2302
+  cam_cam-1793150645628-ch24_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/2401
+  cam_cam-1793150645628-ch24_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/2402
+  cam_cam-1793150645628-ch25_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/2501
+  cam_cam-1793150645628-ch25_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/2502
+  cam_cam-1793150645628-ch26_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/2601
+  cam_cam-1793150645628-ch26_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/2602
+  cam_cam-1793150645628-ch27_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/2701
+  cam_cam-1793150645628-ch27_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/2702
+  cam_cam-1793150645628-ch28_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/2801
+  cam_cam-1793150645628-ch28_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/2802
+  cam_cam-1793150645628-ch29_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/2901
+  cam_cam-1793150645628-ch29_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/2902
+  cam_cam-1793150645628-ch30_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/3001
+  cam_cam-1793150645628-ch30_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/3002
+  cam_cam-1793150645628-ch31_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/3101
+  cam_cam-1793150645628-ch31_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/3102
+  cam_cam-1793150645628-ch32_main:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/3201
+  cam_cam-1793150645628-ch32_sub:
+    - rtsp://admin:Sisply%40271569@192.168.2.9:554/Streaming/Channels/3202
