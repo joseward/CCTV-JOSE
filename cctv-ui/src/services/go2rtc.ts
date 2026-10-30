@@ -5,12 +5,42 @@ export const GO2RTC_URL = `http://${GO2RTC_HOST}`;
 export const GO2RTC_WS = `ws://${GO2RTC_HOST}`;
 
 export async function checkGo2RtcHealth(): Promise<boolean> {
+  // 1. Try Tauri socket check & auto-recovery if running in desktop app
+  if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      let isRunning = await invoke<boolean>('check_go2rtc_running');
+      if (!isRunning) {
+        await invoke('start_go2rtc');
+        isRunning = await invoke<boolean>('check_go2rtc_running');
+      }
+      if (isRunning) return true;
+    } catch {
+      // fallback to http fetch below
+    }
+  }
+
+  // 2. HTTP fetch check
   try {
     const res = await fetch(`${GO2RTC_URL}/api`, { signal: AbortSignal.timeout(2000) });
     return res.ok;
   } catch {
     return false;
   }
+}
+
+export async function restartGo2Rtc(): Promise<boolean> {
+  if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('stop_go2rtc');
+      await invoke('start_go2rtc');
+      return await invoke<boolean>('check_go2rtc_running');
+    } catch (err) {
+      console.error('[go2rtc] Error reiniciando motor:', err);
+    }
+  }
+  return false;
 }
 
 export async function registerStream(name: string, src: string): Promise<boolean> {

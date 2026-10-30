@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Camera, VendorPreset } from '../types/cctv';
 import { INITIAL_CAMERAS } from '../services/storage';
-import { getActiveStreams, checkGo2RtcHealth, validateDvrCredentials, buildPresetRtspUrls } from '../services/go2rtc';
+import { getActiveStreams, checkGo2RtcHealth, validateDvrCredentials, buildPresetRtspUrls, restartGo2Rtc } from '../services/go2rtc';
 import { 
   type AppSettings, 
   sendWhatsAppNotification, 
@@ -468,6 +468,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <span className={`w-2 h-2 rounded-full ${go2rtcOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
                 <span>{go2rtcOnline ? 'En Línea (1984)' : 'Detenido'}</span>
               </span>
+              {!go2rtcOnline && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const ok = await restartGo2Rtc();
+                    setGo2RtcOnline(ok);
+                  }}
+                  className="ml-2 px-2 py-0.5 bg-red-600 hover:bg-red-500 text-[10px] text-white font-bold rounded shadow transition cursor-pointer"
+                >
+                  Iniciar Motor
+                </button>
+              )}
             </div>
 
             <div className="flex items-center space-x-1.5">
@@ -1202,7 +1214,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div>
                   <h3 className="text-base font-bold text-white">Actualización del Sistema</h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Versión instalada: <strong className="text-emerald-400 font-mono text-sm">{updateStatus?.currentVersion || 'v1.1.0'}</strong>
+                    Versión instalada: <strong className="text-emerald-400 font-mono text-sm">{updateStatus?.currentVersion || 'v1.1.1'}</strong>
                   </p>
                 </div>
 

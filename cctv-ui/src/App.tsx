@@ -48,7 +48,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 }
 import type { Camera, GridMode } from './types/cctv';
 import { loadSavedCameras, saveCamerasToStorage } from './services/storage';
-import { syncCameraStreams, checkGo2RtcHealth, buildPresetRtspUrls } from './services/go2rtc';
+import { syncCameraStreams, checkGo2RtcHealth, buildPresetRtspUrls, restartGo2Rtc } from './services/go2rtc';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { CctvPlayer } from './components/CctvPlayer';
@@ -569,7 +569,16 @@ export function App() {
               <strong>Aviso:</strong> Conectando con el motor de streaming go2rtc (puerto 1984)...
             </span>
           </div>
-          <span className="font-mono text-[11px] text-amber-400/80">Iniciando subproceso</span>
+          <button
+            type="button"
+            onClick={async () => {
+              const ok = await restartGo2Rtc();
+              setGo2RtcReady(ok);
+            }}
+            className="px-2.5 py-0.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-[10px] rounded transition shadow cursor-pointer"
+          >
+            Reintentar Conexión
+          </button>
         </div>
       )}
 

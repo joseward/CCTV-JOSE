@@ -57,10 +57,27 @@ fn get_go2rtc_path() -> Option<PathBuf> {
             if candidate2.exists() {
                 return Some(candidate2);
             }
+            let candidate3 = exe_dir.join("resources").join("bin").join("go2rtc.exe");
+            if candidate3.exists() {
+                return Some(candidate3);
+            }
+            let candidate4 = exe_dir.join("resources").join("go2rtc.exe");
+            if candidate4.exists() {
+                return Some(candidate4);
+            }
         }
     }
 
-    // 2. Check current working dir
+    // 2. Check APPDATA
+    if let Ok(appdata) = std::env::var("APPDATA") {
+        let app_dir = PathBuf::from(appdata).join("cctv-viewer");
+        let candidate = app_dir.join("bin").join("go2rtc.exe");
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+
+    // 3. Check current working dir
     let cwd_candidates = [
         PathBuf::from("bin/go2rtc.exe"),
         PathBuf::from("go2rtc.exe"),
@@ -78,6 +95,23 @@ fn get_go2rtc_path() -> Option<PathBuf> {
     }
 
     None
+}
+
+fn get_or_create_go2rtc_config() -> PathBuf {
+    let app_dir = if let Ok(appdata) = std::env::var("APPDATA") {
+        PathBuf::from(appdata).join("cctv-viewer")
+    } else {
+        PathBuf::from(".")
+    };
+    let _ = fs::create_dir_all(&app_dir);
+    let cfg_path = app_dir.join("go2rtc.yaml");
+
+    // Always ensure go2rtc.yaml exists and has API + CORS origin: "*"
+    if !cfg_path.exists() {
+        let default_config = "api:\n  listen: \":1984\"\n  origin: \"*\"\n\nrtsp:\n  listen: \":8554\"\n\nwebrtc:\n  listen: \":8555\"\n";
+        let _ = fs::write(&cfg_path, default_config);
+    }
+    cfg_path
 }
 
 fn get_config_path() -> PathBuf {
@@ -138,8 +172,13 @@ fn start_go2rtc(state: State<AppState>) -> Result<String, String> {
     let bin_path = get_go2rtc_path()
         .ok_or_else(|| "No se encontró el ejecutable go2rtc.exe en las rutas de búsqueda".to_string())?;
 
+    let cfg_path = get_or_create_go2rtc_config();
+
     let mut cmd = Command::new(&bin_path);
-    if let Some(parent) = bin_path.parent() {
+    cmd.arg("-c");
+    cmd.arg(&cfg_path);
+
+    if let Some(parent) = cfg_path.parent() {
         cmd.current_dir(parent);
     }
     cmd.stdout(std::process::Stdio::null());
@@ -157,6 +196,14 @@ fn start_go2rtc(state: State<AppState>) -> Result<String, String> {
 
     let mut proc_guard = state.go2rtc_process.lock().map_err(|e| e.to_string())?;
     *proc_guard = Some(child);
+
+    // Wait up to 1.5 seconds for port 1984 to be active
+    for _ in 0..15 {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        if check_go2rtc_running() {
+            break;
+        }
+    }
 
     Ok(format!("go2rtc iniciado desde {:?}", bin_path))
 }
