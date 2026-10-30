@@ -535,13 +535,13 @@ export const DvrModal: React.FC<DvrModalProps> = ({
               </button>
             </div>
             <div className="flex items-center space-x-2">
-              <div className="grid grid-cols-4 gap-2 flex-1">
-                {[4, 8, 16, 32].map((num) => (
+              <div className="grid grid-cols-5 gap-1.5 flex-1">
+                {[4, 8, 10, 16, 32].map((num) => (
                   <button
                     type="button"
                     key={num}
                     onClick={() => setChannelCount(num)}
-                    className={`py-1.5 rounded-lg font-mono font-bold border transition ${
+                    className={`py-1.5 rounded-lg font-mono font-bold border transition text-center text-xs ${
                       channelCount === num
                         ? 'bg-blue-600 border-blue-500 text-white shadow'
                         : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'

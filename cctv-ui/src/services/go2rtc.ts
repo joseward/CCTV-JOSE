@@ -209,6 +209,11 @@ export function buildPresetPlaybackRtspUrl(
     case 'uniview':
       return `rtsp://${auth}${host}/unicast/c${channel}/s0/playback?starttime=${sY}${sM}${sD}T${sH}${sm}${ss}Z&endtime=${eY}${eM}${eD}T${eH}${em}${es}Z`;
 
+    case 'juan':
+      // Juan / EseeCloud playback format (channel 0-indexed)
+      const jIdx = channel - 1;
+      return `rtsp://${auth}${host}/playback?channel=${jIdx}&starttime=${sY}${sM}${sD}T${sH}${sm}${ss}Z&endtime=${eY}${eM}${eD}T${eH}${em}${es}Z`;
+
     default:
       return `rtsp://${auth}${host}/cam/playback?channel=${channel}&starttime=${sY}_${sM}_${sD}_${sH}_${sm}_${ss}&endtime=${eY}_${eM}_${eD}_${eH}_${em}_${es}`;
   }
@@ -438,6 +443,22 @@ async function queryDvrHardwareHttp(
             channelCount: count,
           };
         }
+      }
+    } catch {}
+
+    // 3. Try Juan / EseeCloud (Port 80 view1.js)
+    try {
+      const outJuan = await invoke<string>('fetch_dvr_api', {
+        url: `http://${cleanIp}/view1.js`,
+        method: 'GET',
+        auth: undefined,
+      });
+      if (outJuan && (outJuan.includes('juan') || outJuan.includes('dvr_ocx') || outJuan.includes('nvrPlayerInit'))) {
+        return {
+          ok: true,
+          vendor: 'juan',
+          channelCount: 10,
+        };
       }
     } catch {}
   } catch {}

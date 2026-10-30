@@ -205,19 +205,19 @@ export const AddDvrModal: React.FC<AddDvrModalProps> = ({
           {/* Channel Count Selector */}
           <div>
             <label className="block font-semibold mb-1 text-slate-400">Cantidad de Canales</label>
-            <div className="grid grid-cols-4 gap-2">
-              {[4, 8, 16, 32].map((num) => (
+            <div className="grid grid-cols-5 gap-1.5">
+              {[4, 8, 10, 16, 32].map((num) => (
                 <button
                   type="button"
                   key={num}
                   onClick={() => setChannelCount(num)}
-                  className={`py-2 rounded-lg font-mono font-bold border transition ${
+                  className={`py-2 rounded-lg font-mono font-bold border transition text-center text-xs ${
                     channelCount === num
                       ? 'bg-blue-600 border-blue-500 text-white shadow'
                       : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
                   }`}
                 >
-                  {num} Canales
+                  {num} Ch
                 </button>
               ))}
             </div>
