@@ -250,6 +250,7 @@ export interface ValidationResult {
   ok: boolean;
   message: string;
   detectedVendor?: string;
+  detectedPort?: number;
 }
 
 /**
@@ -299,17 +300,28 @@ export async function validateDvrCredentials(
   const cleanUser = user.trim();
 
   // Helper to test a specific vendor preset on both sub and main streams
-  const testVendor = async (v: string): Promise<{ ok: boolean; errorText?: string }> => {
+  const testVendor = async (v: string): Promise<{ ok: boolean; errorText?: string; detectedPort?: number }> => {
     const urls = buildPresetRtspUrls(v, cleanIp, port, cleanUser, pass, 1);
-    // 1. Try sub-stream first
+    // 1. Try sub-stream first on configured port
     let probe = await probeStreamRealVideo(urls.sub, 3500);
-    if (probe.ok) return probe;
+    if (probe.ok) return { ...probe, detectedPort: port };
 
-    // 2. If sub-stream failed or has no video, try main stream (many DVRs disable sub-stream)
+    // 2. If sub-stream failed or has no video, try main stream
     if (urls.main && urls.main !== urls.sub) {
       await new Promise((r) => setTimeout(r, 150));
       probe = await probeStreamRealVideo(urls.main, 4000);
-      if (probe.ok) return probe;
+      if (probe.ok) return { ...probe, detectedPort: port };
+    }
+
+    // 3. Fallback for Juan/EseeCloud: Check port 80 if 554 was configured
+    if (v === 'juan' && port !== 80) {
+      const urls80 = buildPresetRtspUrls(v, cleanIp, 80, cleanUser, pass, 1);
+      let probe80 = await probeStreamRealVideo(urls80.sub, 3500);
+      if (probe80.ok) return { ...probe80, detectedPort: 80 };
+      if (urls80.main && urls80.main !== urls80.sub) {
+        probe80 = await probeStreamRealVideo(urls80.main, 4000);
+        if (probe80.ok) return { ...probe80, detectedPort: 80 };
+      }
     }
     return probe;
   };
@@ -321,6 +333,7 @@ export async function validateDvrCredentials(
     return { 
       ok: true, 
       detectedVendor: vendor, 
+      detectedPort: primaryProbe.detectedPort,
       message: `¡Credenciales y conexión validadas exitosamente (${vendor.toUpperCase()})!` 
     };
   }
@@ -341,6 +354,7 @@ export async function validateDvrCredentials(
       return {
         ok: true,
         detectedVendor: candidate,
+        detectedPort: candidateProbe.detectedPort,
         message: `¡Conexión exitosa! El equipo fue detectado como ${candidate.toUpperCase()} (se corrigió la marca automáticamente).`,
       };
     }

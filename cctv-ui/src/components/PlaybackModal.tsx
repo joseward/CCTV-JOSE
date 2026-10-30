@@ -34,7 +34,9 @@ import {
   CheckCircle2, 
   AlertTriangle,
   StopCircle,
-  FileVideo
+  FileVideo,
+  Globe,
+  ExternalLink
 } from 'lucide-react';
 
 if (typeof window !== 'undefined' && !customElements.get('video-rtc')) {
@@ -697,8 +699,36 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
             </div>
           )}
 
+          {/* Juan / EseeCloud Native Playback Notice & Web Portal Quick Access */}
+          {activeCamera?.vendorPreset === 'juan' && (
+            <div className="absolute top-12 left-3 right-3 z-20 bg-blue-950/95 border border-blue-500/80 text-blue-200 px-4 py-2.5 rounded-xl shadow-xl backdrop-blur flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs animate-in fade-in">
+              <div className="flex items-center space-x-2.5">
+                <Globe className="w-5 h-5 text-blue-400 flex-shrink-0" />
+                <div className="space-y-0.5">
+                  <div className="font-bold text-white flex items-center space-x-1.5">
+                    <span>NVR Juan / EseeCloud (Grabaciones en disco de 1TB)</span>
+                    <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-400/40 px-1.5 py-0.5 rounded font-mono font-bold">100% Grabando</span>
+                  </div>
+                  <p className="text-[11px] text-blue-200/90 leading-tight">
+                    Este grabador reproduce sus archivos por su plataforma web nativa (puerto 10000). Consulta los días grabados en el calendario arriba o abre el reproductor web directo.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  window.open(`http://${activeCamera.ip}/#/playback`, '_blank');
+                }}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-xs whitespace-nowrap shadow flex items-center space-x-1.5 transition self-end sm:self-auto cursor-pointer"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Abrir Reproductor Web del NVR</span>
+              </button>
+            </div>
+          )}
+
           {/* Warning Banner when video is black or codec unsupported */}
-          {videoRenderWarning && (
+          {videoRenderWarning && activeCamera?.vendorPreset !== 'juan' && (
             <div className="absolute top-12 left-3 right-3 z-20 bg-amber-950/95 border border-amber-600/80 text-amber-200 px-4 py-2.5 rounded-xl shadow-xl backdrop-blur flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs animate-in fade-in">
               <div className="flex items-center space-x-2">
                 <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0" />

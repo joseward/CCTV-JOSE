@@ -688,6 +688,52 @@ async fn query_recorded_days(
                         has_more = false;
                     }
                 }
+            } else if vendor.to_lowercase() == "juan" {
+                // Juan / EseeCloud: Query R.SearchRecord
+                let ch_idx = (channel.saturating_sub(1)) as usize;
+                let mut ch_bools = vec!["False"; 10];
+                if ch_idx < ch_bools.len() {
+                    ch_bools[ch_idx] = "True";
+                } else {
+                    ch_bools[0] = "True";
+                }
+                let ch_json = format!(r#"["{}"]"#, ch_bools.join(r#"",""#));
+
+                for d in 1..=last_day {
+                    let date_str = format!("{}-{:02}-{:02}", year, month, d);
+                    let body = format!(
+                        r#"{{"DEV":"XVR","VER":"1.0","API":"R.SearchRecord","Parameter":{{"Channel":{},"Type":["True","True","True"],"Date":"{}","BeginTime":"00:00:00","EndTime":"23:59:59","PageSize":1,"CurrentPage":"1","Reload":"True"}}}}"#,
+                        ch_json, date_str
+                    );
+
+                    let mut cmd = Command::new("curl.exe");
+                    cmd.args([
+                        "-s", "-k", "--connect-timeout", "1", "--max-time", "2",
+                        "-u", &auth,
+                        "-X", "POST",
+                        "-H", "Content-Type: application/json",
+                        "-d", &body,
+                        &format!("http://{}/netsdk/R.SearchRecord", ip),
+                    ]);
+                    cmd.creation_flags(CREATE_NO_WINDOW);
+
+                    if let Ok(out) = cmd.output() {
+                        let text = String::from_utf8_lossy(&out.stdout);
+                        if let Some(pos) = text.find(r#""SearchCnt""#) {
+                            let rest = &text[pos..];
+                            if let Some(val_start) = rest.find(':') {
+                                let val_str = rest[val_start + 1..].trim_start().trim_matches(|c| c == '"' || c == ' ' || c == '\r' || c == '\n');
+                                let num_str: String = val_str.chars().take_while(|c| c.is_ascii_digit()).collect();
+                                if let Ok(cnt) = num_str.parse::<u32>() {
+                                    if cnt > 0 {
+                                        days.insert(d);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(15));
+                }
             } else {
                 // Dahua protocol
                 let start_time = format!("{}-{:02}-01%2000:00:00", year, month);

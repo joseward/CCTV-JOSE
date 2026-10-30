@@ -379,7 +379,11 @@ export const DvrModal: React.FC<DvrModalProps> = ({
                 <button
                   type="button"
                   key={p.id}
-                  onClick={() => setVendorPreset(p.id as VendorPreset)}
+                  onClick={() => {
+                    setVendorPreset(p.id as VendorPreset);
+                    if (p.id === 'juan' && port === 554) setPort(80);
+                    if (p.id !== 'juan' && port === 80) setPort(554);
+                  }}
                   className={`py-2 px-2 rounded-lg font-medium border text-center transition ${
                     vendorPreset === p.id
                       ? 'bg-blue-600/20 border-blue-500 text-blue-300 font-bold shadow-sm'

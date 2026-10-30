@@ -234,13 +234,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       dvr.password || ''
     );
 
-    if (res.ok && res.detectedVendor && res.detectedVendor !== dvr.vendorPreset) {
+    if (res.ok && res.detectedVendor) {
       const correctedPreset = res.detectedVendor as VendorPreset;
+      const correctedPort = res.detectedPort || (correctedPreset === 'juan' && (dvr.port === 554 || !dvr.port) ? 80 : dvr.port);
       const updated = cameras.map((c) => {
         if (c.group === dvr.groupName) {
-          const urls = buildPresetRtspUrls(correctedPreset, c.ip, c.port, c.username, c.password, c.channel);
+          const urls = buildPresetRtspUrls(correctedPreset, c.ip, correctedPort, c.username, c.password, c.channel);
           return {
             ...c,
+            port: correctedPort,
             vendorPreset: correctedPreset,
             mainStreamUrl: urls.main,
             subStreamUrl: urls.sub,
