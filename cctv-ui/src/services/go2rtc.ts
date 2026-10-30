@@ -186,10 +186,24 @@ export function buildPresetPlaybackRtspUrl(
       return `rtsp://${auth}${host}/cam/playback?channel=${channel}&starttime=${dStart}&endtime=${dEnd}`;
 
     case 'hikvision':
-      // Hikvision format: /Streaming/tracks/101?starttime=YYYYMMDDTHHMMSSZ&endtime=YYYYMMDDTHHMMSSZ
+      // Hikvision standard UTC tracks format: YYYYMMDDTHHMMSSZ (requires true UTC Zulu time)
       const hTrack = `${channel}01`;
-      const hStart = `${sY}${sM}${sD}T${sH}${sm}${ss}Z`;
-      const hEnd = `${eY}${eM}${eD}T${eH}${em}${es}Z`;
+      const uY = startTime.getUTCFullYear();
+      const uM = pad(startTime.getUTCMonth() + 1);
+      const uD = pad(startTime.getUTCDate());
+      const uH = pad(startTime.getUTCHours());
+      const um = pad(startTime.getUTCMinutes());
+      const us = pad(startTime.getUTCSeconds());
+
+      const ueY = endTime.getUTCFullYear();
+      const ueM = pad(endTime.getUTCMonth() + 1);
+      const ueD = pad(endTime.getUTCDate());
+      const ueH = pad(endTime.getUTCHours());
+      const uem = pad(endTime.getUTCMinutes());
+      const ues = pad(endTime.getUTCSeconds());
+
+      const hStart = `${uY}${uM}${uD}T${uH}${um}${us}Z`;
+      const hEnd = `${ueY}${ueM}${ueD}T${ueH}${uem}${ues}Z`;
       return `rtsp://${auth}${host}/Streaming/tracks/${hTrack}?starttime=${hStart}&endtime=${hEnd}`;
 
     case 'uniview':

@@ -13,6 +13,9 @@ export async function loadSavedCameras(): Promise<Camera[]> {
       if (jsonStr && jsonStr.trim() !== '[]' && jsonStr.trim() !== '') {
         const parsed = JSON.parse(jsonStr);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          try {
+            localStorage.setItem(STORAGE_KEY, jsonStr);
+          } catch {}
           return parsed;
         }
       }
@@ -27,6 +30,13 @@ export async function loadSavedCameras(): Promise<Camera[]> {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
+        // Restore to Tauri disk file if it was empty
+        if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+          try {
+            const { invoke } = await import('@tauri-apps/api/core');
+            await invoke('save_cameras', { camerasJson: raw });
+          } catch {}
+        }
         return parsed;
       }
     }

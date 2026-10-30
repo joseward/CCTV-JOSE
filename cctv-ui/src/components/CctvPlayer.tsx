@@ -58,9 +58,15 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
     mode: 'WebRTC / MSE (GPU)',
   });
   const [snapshotToast, setSnapshotToast] = useState<string | null>(null);
+  const [fallbackToSub, setFallbackToSub] = useState<boolean>(false);
 
-  // Determine active stream: main if maximized, else sub
-  const activeStreamType = isMaximized ? 'main' : 'sub';
+  // Reset fallback when camera or maximized state changes
+  useEffect(() => {
+    setFallbackToSub(false);
+  }, [camera.id, isMaximized]);
+
+  // Determine active stream: main if maximized and not falling back, else sub
+  const activeStreamType = (isMaximized && !fallbackToSub) ? 'main' : 'sub';
   const activeStreamName = `cam_${camera.id}_${activeStreamType}`;
 
   // Cleanup active connections
@@ -134,8 +140,8 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
       const player = document.createElement('video-rtc') as any;
       playerRef.current = player;
 
-      // Enable WebRTC and MSE modes
-      player.mode = 'webrtc,mse,mp4';
+      // Enable MSE first for D3D11 hardware decoding of H.264 & H.265 (HEVC), with WebRTC & MJPEG fallback
+      player.mode = 'mse,webrtc,mjpeg';
       player.media = camera.audioEnabled ? 'video,audio' : 'video';
       player.background = true;
       player.style.width = '100%';
@@ -207,11 +213,16 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
         }
       }, 250);
 
-      // Connection timeout: 15s to allow for RTSP Digest auth & initial keyframe
+      // Connection timeout: If maximized and main stream doesn't connect within 4.5s, auto-fallback to sub-stream
       connectTimeoutRef.current = setTimeout(() => {
-        console.warn(`[CCTV ${camera.name}] Sin señal tras 15s, reintentando con backoff...`);
+        if (isMaximized && !fallbackToSub && camera.subStreamUrl) {
+          console.warn(`[CCTV ${camera.name}] Flujo Main HD sin respuesta tras 4.5s, activando fallback a Sub-Stream...`);
+          setFallbackToSub(true);
+          return;
+        }
+        console.warn(`[CCTV ${camera.name}] Sin señal tras 12s, reintentando con backoff...`);
         scheduleReconnect();
-      }, 15000);
+      }, (isMaximized && !fallbackToSub) ? 4500 : 12000);
 
     } catch (err: any) {
       console.warn(`[CCTV ${camera.name}] Error creando reproductor:`, err);

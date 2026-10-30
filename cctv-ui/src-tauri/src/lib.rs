@@ -114,32 +114,21 @@ fn get_or_create_go2rtc_config() -> PathBuf {
     cfg_path
 }
 
-fn get_config_path() -> PathBuf {
-    if let Ok(exe_path) = std::env::current_exe() {
-        if let Some(exe_dir) = exe_path.parent() {
-            let local_config = exe_dir.join("cameras.json");
-            if local_config.exists() {
-                return local_config;
-            }
-        }
-    }
-
-    let local = PathBuf::from("cameras.json");
-    if local.exists() {
-        return local;
-    }
-
+fn get_primary_config_path() -> PathBuf {
     if let Ok(appdata) = std::env::var("APPDATA") {
         let app_dir = PathBuf::from(appdata).join("cctv-viewer");
         let _ = fs::create_dir_all(&app_dir);
         return app_dir.join("cameras.json");
     }
-
     PathBuf::from("cameras.json")
 }
 
+fn get_config_path() -> PathBuf {
+    get_primary_config_path()
+}
+
 fn get_settings_path() -> PathBuf {
-    let mut path = get_config_path();
+    let mut path = get_primary_config_path();
     path.set_file_name("settings.json");
     path
 }
@@ -278,22 +267,80 @@ fn stop_whatsapp_gateway(state: State<AppState>) -> Result<String, String> {
 
 #[tauri::command]
 fn load_cameras() -> Result<String, String> {
-    let path = get_config_path();
-    if path.exists() {
-        fs::read_to_string(&path).map_err(|e| format!("Error al leer configuración: {}", e))
-    } else {
-        Ok("[]".to_string())
+    let primary = get_primary_config_path();
+
+    // Collect all candidate locations where user's cameras could be stored
+    let mut candidates = Vec::new();
+    candidates.push(primary.clone());
+
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            candidates.push(exe_dir.join("cameras.json"));
+            if let Some(grandparent) = exe_dir.parent() {
+                candidates.push(grandparent.join("cameras.json"));
+            }
+        }
     }
+
+    if let Ok(localappdata) = std::env::var("LOCALAPPDATA") {
+        candidates.push(PathBuf::from(&localappdata).join("cctv-viewer").join("cameras.json"));
+        candidates.push(PathBuf::from(&localappdata).join("Programs").join("cctv-viewer").join("cameras.json"));
+    }
+
+    candidates.push(PathBuf::from("cameras.json"));
+    candidates.push(PathBuf::from("../cameras.json"));
+
+    // Find candidate with the highest number of configured cameras
+    let mut best_content = String::new();
+    let mut best_camera_count = 0;
+
+    for path in &candidates {
+        if path.exists() {
+            if let Ok(content) = fs::read_to_string(path) {
+                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Some(arr) = val.as_array() {
+                        if arr.len() > best_camera_count {
+                            best_camera_count = arr.len();
+                            best_content = content;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if best_camera_count > 0 {
+        // Ensure primary persistent storage is updated
+        let _ = fs::write(&primary, &best_content);
+        return Ok(best_content);
+    }
+
+    if primary.exists() {
+        if let Ok(c) = fs::read_to_string(&primary) {
+            return Ok(c);
+        }
+    }
+
+    Ok("[]".to_string())
 }
 
 #[tauri::command]
 fn save_cameras(cameras_json: String) -> Result<String, String> {
-    let path = get_config_path();
-    if let Some(parent) = path.parent() {
+    let primary = get_primary_config_path();
+    if let Some(parent) = primary.parent() {
         let _ = fs::create_dir_all(parent);
     }
-    fs::write(&path, cameras_json).map_err(|e| format!("Error al guardar configuración: {}", e))?;
-    Ok(format!("Configuración guardada en {:?}", path))
+    fs::write(&primary, &cameras_json).map_err(|e| format!("Error al guardar configuración: {}", e))?;
+
+    // Mirror to exe_dir if possible
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let mirror = exe_dir.join("cameras.json");
+            let _ = fs::write(mirror, &cameras_json);
+        }
+    }
+
+    Ok(format!("Configuración guardada en {:?}", primary))
 }
 
 #[tauri::command]

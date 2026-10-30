@@ -218,7 +218,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
         if (containerRef.current) {
           const player = document.createElement('video-rtc') as any;
           playerRef.current = player;
-          player.mode = 'webrtc,mse,mp4';
+          player.mode = 'mse,webrtc,mjpeg';
           player.media = activeCamera.audioEnabled ? 'video,audio' : 'video';
           player.background = true;
           player.style.width = '100%';

@@ -167,7 +167,17 @@ export function App() {
       setCameras(loaded);
       syncCameraStreams(loaded);
 
-      // Loaded cameras are synced to go2rtc; slots start clean so user selects what to watch
+      // Auto-load first 4 cameras into mosaic if slots are unassigned
+      if (loaded.length > 0) {
+        setSlots((prev) => {
+          if (prev.some((id) => id !== null)) return prev;
+          const initial = [null, null, null, null] as (string | null)[];
+          loaded.slice(0, 4).forEach((c, idx) => {
+            initial[idx] = c.id;
+          });
+          return initial;
+        });
+      }
     });
 
     checkGo2RtcHealth().then(setGo2RtcReady);
