@@ -1152,6 +1152,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </label>
                 </div>
 
+                {/* Video Quality Preference */}
+                <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-200">Modo de calidad al agrandar cámaras:</p>
+                      <p className="text-[11px] text-slate-400">
+                        Recomendado 'Automático' o 'Siempre Fluido (SD)' para máxima compatibilidad con tarjetas de video antiguas.
+                      </p>
+                    </div>
+                    <select
+                      value={localSettings.streamQualityPreference || 'auto'}
+                      onChange={(e) => setLocalSettings({ ...localSettings, streamQualityPreference: e.target.value as any })}
+                      className="bg-slate-900 border border-slate-700 text-xs text-white rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-purple-500 font-medium cursor-pointer"
+                    >
+                      <option value="auto">Automático (HD con cambio a Fluido si no se ve)</option>
+                      <option value="sub">Siempre Fluido (SD - 100% compatible sin pantalla negra)</option>
+                      <option value="main">Forzar Alta Definición (HD)</option>
+                    </select>
+                  </div>
+                </div>
+
                 {/* Clean Termination Button */}
                 <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
                   <span className="text-[11px] text-slate-500">
@@ -1214,7 +1235,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div>
                   <h3 className="text-base font-bold text-white">Actualización del Sistema</h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Versión instalada: <strong className="text-emerald-400 font-mono text-sm">{updateStatus?.currentVersion || 'v1.1.3'}</strong>
+                    Versión instalada: <strong className="text-emerald-400 font-mono text-sm">{updateStatus?.currentVersion || 'v1.1.4'}</strong>
                   </p>
                 </div>
 

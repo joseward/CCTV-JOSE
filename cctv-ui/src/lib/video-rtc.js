@@ -602,7 +602,7 @@ export class VideoRTC extends HTMLElement {
             }
             if (stream.getAudioTracks().length > 0) rtcPriority += 0x102;
 
-            if (this.mseCodecs.includes('hvc1.')) msePriority += 0x230;
+            if (this.mseCodecs.includes('hvc1.')) msePriority += 0x250;
             if (this.mseCodecs.includes('avc1.')) msePriority += 0x210;
             if (this.mseCodecs.includes('mp4a.')) msePriority += 0x101;
 

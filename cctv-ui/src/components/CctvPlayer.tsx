@@ -28,6 +28,7 @@ interface CctvPlayerProps {
   onSelectSlot?: () => void;
   onCloseSlot?: () => void;
   onOpenPlayback?: () => void;
+  preferredQuality?: 'auto' | 'sub' | 'main';
 }
 
 export const CctvPlayer: React.FC<CctvPlayerProps> = ({
@@ -39,6 +40,7 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
   onSelectSlot,
   onCloseSlot,
   onOpenPlayback,
+  preferredQuality = 'auto',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
@@ -59,15 +61,31 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
   });
   const [snapshotToast, setSnapshotToast] = useState<string | null>(null);
   const [fallbackToSub, setFallbackToSub] = useState<boolean>(false);
+  const [userStreamOverride, setUserStreamOverride] = useState<'main' | 'sub' | null>(null);
 
-  // Reset fallback when camera or maximized state changes
+  // Reset fallback and override when camera changes
   useEffect(() => {
     setFallbackToSub(false);
-  }, [camera.id, isMaximized]);
+    setUserStreamOverride(null);
+  }, [camera.id]);
 
-  // Determine active stream: main if maximized and not falling back, else sub
-  const activeStreamType = (isMaximized && !fallbackToSub) ? 'main' : 'sub';
+  // Determine active stream: user override > auto fallback > maximized preference
+  const shouldDefaultToMain = preferredQuality === 'main' || (isMaximized && preferredQuality !== 'sub');
+  const activeStreamType = userStreamOverride || ((shouldDefaultToMain && !fallbackToSub) ? 'main' : 'sub');
   const activeStreamName = `cam_${camera.id}_${activeStreamType}`;
+
+  const handleToggleQuality = () => {
+    if (activeStreamType === 'main') {
+      setUserStreamOverride('sub');
+      setFallbackToSub(true);
+      setSnapshotToast('Modo Fluido (SD) activado');
+    } else {
+      setUserStreamOverride('main');
+      setFallbackToSub(false);
+      setSnapshotToast('Modo Alta Definición (HD) activado');
+    }
+    setTimeout(() => setSnapshotToast(null), 2500);
+  };
 
   // Cleanup active connections
   const cleanupConnections = useCallback(() => {
@@ -168,6 +186,14 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
 
       // Function to mark stream as successfully playing & hide overlay
       const markConnected = () => {
+        const vid = playerRef.current?.video;
+        // Verify real decodable video frames
+        const hasRealPixels = vid && vid.videoWidth > 0 && vid.videoHeight > 0 && (vid.currentTime > 0 || vid.readyState >= 3);
+        if (activeStreamType === 'main' && !hasRealPixels) {
+          // Do not mark connected yet if it's main stream and no pixels rendered!
+          return;
+        }
+
         if (connectTimeoutRef.current) {
           clearTimeout(connectTimeoutRef.current);
           connectTimeoutRef.current = null;
@@ -178,7 +204,6 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
         }
         setStatus('connected');
         setRetryAttempt(0);
-        const vid = playerRef.current?.video;
         if (vid && vid.videoWidth && vid.videoHeight) {
           setLiveStats((prev) => ({
             ...prev,
@@ -208,21 +233,36 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
       playbackIntervalRef.current = setInterval(() => {
         if (!playerRef.current) return;
         const v = playerRef.current.video;
-        if (v && (v.currentTime > 0 || v.readyState >= 2 || v.videoWidth > 0)) {
-          markConnected();
+        if (v) {
+          const isRendering = v.videoWidth > 0 && v.videoHeight > 0 && (v.currentTime > 0 || v.readyState >= 3);
+          if (isRendering) {
+            markConnected();
+          } else if (activeStreamType === 'sub' && (v.currentTime > 0 || v.readyState >= 2)) {
+            markConnected();
+          }
         }
       }, 250);
 
-      // Connection timeout: If maximized and main stream doesn't connect within 4.5s, auto-fallback to sub-stream
+      // Connection timeout: If main stream doesn't render frames within 2.5s, auto-fallback to sub-stream
+      const watchdogDelay = activeStreamType === 'main' ? 2500 : 10000;
       connectTimeoutRef.current = setTimeout(() => {
-        if (isMaximized && !fallbackToSub && camera.subStreamUrl) {
-          console.warn(`[CCTV ${camera.name}] Flujo Main HD sin respuesta tras 4.5s, activando fallback a Sub-Stream...`);
+        const vid = playerRef.current?.video;
+        const isActuallyRendering = vid && vid.videoWidth > 0 && vid.videoHeight > 0 && vid.currentTime > 0;
+
+        if (activeStreamType === 'main' && !isActuallyRendering && camera.subStreamUrl) {
+          console.warn(`[CCTV ${camera.name}] Flujo Main HD (H.265) sin decodificación en esta GPU tras 2.5s. Activando automáticamente Sub-Stream (H.264)...`);
           setFallbackToSub(true);
+          setUserStreamOverride('sub');
+          setSnapshotToast('Modo Fluido (SD) activado por compatibilidad');
+          setTimeout(() => setSnapshotToast(null), 3500);
           return;
         }
-        console.warn(`[CCTV ${camera.name}] Sin señal tras 12s, reintentando con backoff...`);
-        scheduleReconnect();
-      }, (isMaximized && !fallbackToSub) ? 4500 : 12000);
+
+        if (!isActuallyRendering) {
+          console.warn(`[CCTV ${camera.name}] Sin señal tras 10s, reintentando con backoff...`);
+          scheduleReconnect();
+        }
+      }, watchdogDelay);
 
     } catch (err: any) {
       console.warn(`[CCTV ${camera.name}] Error creando reproductor:`, err);
@@ -330,15 +370,22 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
         </div>
 
         <div className="flex items-center space-x-1.5 flex-shrink-0">
-          <span 
-            className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded tracking-wide ${
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggleQuality();
+            }}
+            className={`pointer-events-auto cursor-pointer text-[9px] font-mono font-bold px-2 py-0.5 rounded tracking-wide transition flex items-center space-x-1 shadow-sm ${
               activeStreamType === 'main'
-                ? 'bg-emerald-950 text-emerald-400 border border-emerald-600/60 shadow-[0_0_6px_rgba(16,185,129,0.2)]'
-                : 'bg-blue-950 text-blue-400 border border-blue-600/60'
+                ? 'bg-emerald-950/90 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/70 shadow-[0_0_6px_rgba(16,185,129,0.3)]'
+                : 'bg-blue-950/90 hover:bg-blue-900 text-blue-300 border border-blue-500/70'
             }`}
+            title={`Calidad actual: ${activeStreamType.toUpperCase()}. Haz clic para alternar entre HD (Principal) y SD (Fluido)`}
           >
-            {activeStreamType.toUpperCase()}
-          </span>
+            <span>{activeStreamType === 'main' ? 'HD' : 'SD'}</span>
+            <span className="opacity-75 text-[8px]">{activeStreamType === 'main' ? 'Principal' : 'Fluido'}</span>
+          </button>
 
           <span className="text-[9px] font-mono text-cyan-400 bg-cyan-950/70 border border-cyan-800/50 px-1.5 py-0.5 rounded hidden md:inline">
             D3D11 HW

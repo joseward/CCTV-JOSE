@@ -15,6 +15,7 @@ export interface AppSettings {
   alertOnRecovery: boolean;
   autostartWindows: boolean;
   minimizeToTrayOnClose: boolean;
+  streamQualityPreference?: 'auto' | 'sub' | 'main';
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -34,6 +35,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   alertOnRecovery: true,
   autostartWindows: true,
   minimizeToTrayOnClose: true,
+  streamQualityPreference: 'auto',
 };
 
 export interface PhoneValidation {

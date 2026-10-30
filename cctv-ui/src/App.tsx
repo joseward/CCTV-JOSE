@@ -622,6 +622,7 @@ export function App() {
               <CctvPlayer
                 camera={maximizedCamera}
                 isMaximized={true}
+                preferredQuality={appSettings.streamQualityPreference}
                 onToggleMaximize={() => setMaximizedCameraId(null)}
                 index={0}
                 onOpenPlayback={() => {
@@ -643,6 +644,7 @@ export function App() {
                       key={`${assignedCamera.id}-slot-${slotIdx}`}
                       camera={assignedCamera}
                       isMaximized={false}
+                      preferredQuality={appSettings.streamQualityPreference}
                       onToggleMaximize={() => setMaximizedCameraId(assignedCamera.id)}
                       index={slotIdx}
                       isSelected={isSelected}

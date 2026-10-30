@@ -65,6 +65,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const [videoRenderWarning, setVideoRenderWarning] = useState<string | null>(null);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
   const [isMuted, setIsMuted] = useState<boolean>(true);
   const [isMaximized, setIsMaximized] = useState<boolean>(false);
@@ -91,6 +92,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
   const playerRef = useRef<any>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   const clockIntervalRef = useRef<any>(null);
+  const watchdogRef = useRef<any>(null);
 
   // Group cameras by DVR
   const cameraGroups = useMemo(() => {
@@ -204,6 +206,12 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
       setSelectedTime(`${pad(hours)}:${pad(mins)}:${pad(secs)}`);
 
       try {
+        if (watchdogRef.current) {
+          clearTimeout(watchdogRef.current);
+          watchdogRef.current = null;
+        }
+        setVideoRenderWarning(null);
+
         const session = await startPlaybackSession(activeCamera, startDate, endDate);
         if (!session) {
           setPlaybackError('No se pudo iniciar la sesión de reproducción en go2rtc.');
@@ -231,6 +239,17 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
 
           setIsPlaying(true);
           setIsLoading(false);
+
+          // Watchdog: If after 3.8s video is still black or has 0 dimensions
+          watchdogRef.current = setTimeout(() => {
+            const vid = playerRef.current?.querySelector('video') || playerRef.current?.video;
+            const isRendering = vid && vid.videoWidth > 0 && vid.videoHeight > 0 && vid.currentTime > 0;
+            if (!isRendering) {
+              setVideoRenderWarning(
+                'Pantalla sin señal o en negro: Es probable que no existan grabaciones a esta hora (grabación solo por eventos/movimiento) o que el grabador use códec H.265. Puedes descargar la evidencia directamente en MP4.'
+              );
+            }
+          }, 3800);
 
           // Advance virtual clock while playing
           clockIntervalRef.current = setInterval(() => {
@@ -675,6 +694,29 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
               <span>{activeCamera?.name}</span>
               <span className="text-slate-500">|</span>
               <span className="text-emerald-400 font-bold">{selectedDate} {formatSecondsToTime(currentSecondsOfDay)}</span>
+            </div>
+          )}
+
+          {/* Warning Banner when video is black or codec unsupported */}
+          {videoRenderWarning && (
+            <div className="absolute top-12 left-3 right-3 z-20 bg-amber-950/95 border border-amber-600/80 text-amber-200 px-4 py-2.5 rounded-xl shadow-xl backdrop-blur flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs animate-in fade-in">
+              <div className="flex items-center space-x-2">
+                <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0" />
+                <span>{videoRenderWarning}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setDownloadCameraId(activeCamera?.id || '');
+                  setDownloadDate(selectedDate);
+                  setDownloadStartTime(formatSecondsToTime(currentSecondsOfDay));
+                  setIsDownloadModalOpen(true);
+                }}
+                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs whitespace-nowrap shadow flex items-center space-x-1 transition self-end sm:self-auto cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Descargar Evidencia MP4</span>
+              </button>
             </div>
           )}
 
