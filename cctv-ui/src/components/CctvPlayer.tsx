@@ -29,6 +29,7 @@ interface CctvPlayerProps {
   onCloseSlot?: () => void;
   onOpenPlayback?: () => void;
   preferredQuality?: 'auto' | 'sub' | 'main';
+  isPaused?: boolean;
 }
 
 export const CctvPlayer: React.FC<CctvPlayerProps> = ({
@@ -41,6 +42,7 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
   onCloseSlot,
   onOpenPlayback,
   preferredQuality = 'auto',
+  isPaused = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
@@ -270,13 +272,18 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
     }
   }, [activeStreamName, camera, isMuted, aspectMode, cleanupConnections, scheduleReconnect]);
 
-  // Re-connect when camera or stream type (sub/main) changes
+  // Re-connect when camera or stream type (sub/main) changes, or pause when unfocused/playback open
   useEffect(() => {
+    if (isPaused) {
+      cleanupConnections();
+      setStatus('idle');
+      return;
+    }
     connectStream();
     return () => {
       cleanupConnections();
     };
-  }, [connectStream, cleanupConnections]);
+  }, [connectStream, cleanupConnections, isPaused]);
 
   // Update mute state on video
   useEffect(() => {

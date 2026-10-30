@@ -623,6 +623,7 @@ export function App() {
                 camera={maximizedCamera}
                 isMaximized={true}
                 preferredQuality={appSettings.streamQualityPreference}
+                isPaused={isPlaybackModalOpen}
                 onToggleMaximize={() => setMaximizedCameraId(null)}
                 index={0}
                 onOpenPlayback={() => {
@@ -645,6 +646,7 @@ export function App() {
                       camera={assignedCamera}
                       isMaximized={false}
                       preferredQuality={appSettings.streamQualityPreference}
+                      isPaused={isPlaybackModalOpen}
                       onToggleMaximize={() => setMaximizedCameraId(assignedCamera.id)}
                       index={slotIdx}
                       isSelected={isSelected}

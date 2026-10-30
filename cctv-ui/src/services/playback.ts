@@ -81,7 +81,7 @@ export async function queryRecordedDays(
   month: number,
   forceRefresh: boolean = false
 ): Promise<number[]> {
-  const cacheKey = `${camera.ip}_${camera.channel || 1}_${year}_${month}`;
+  const cacheKey = `${camera.id}_${camera.ip}_${camera.channel || 1}_${year}_${month}`;
 
   if (!forceRefresh) {
     const cached = recordedDaysCache.get(cacheKey);

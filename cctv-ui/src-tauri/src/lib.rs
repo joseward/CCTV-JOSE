@@ -644,33 +644,48 @@ async fn query_recorded_days(
             let mut days = BTreeSet::new();
 
             if vendor.to_lowercase() == "hikvision" {
-                let xml = format!(
-                    r#"<?xml version="1.0" encoding="utf-8"?><CMSearchDescription><searchID>C92DC285-8F30-0001-40C6-F0EFA8FB18B5</searchID><trackList><trackID>{}01</trackID></trackList><timeSpanList><timeSpan><startTime>{}-{:02}-01T00:00:00Z</startTime><endTime>{}-{:02}-{:02}T23:59:59Z</endTime></timeSpan></timeSpanList><maxResults>100</maxResults><searchResultPostion>0</searchResultPostion><metadataList><metadataDescriptor>//recordType.meta.std-cgi.com</metadataDescriptor></metadataList></CMSearchDescription>"#,
-                    channel, year, month, year, month, last_day
-                );
+                let mut position = 0;
+                let mut has_more = true;
+                let target_prefix = format!("{}-{:02}-", year, month);
 
-                let mut cmd = Command::new("curl.exe");
-                cmd.args([
-                    "-s", "-k", "-L", "--location-trusted", "--connect-timeout", "2", "--max-time", "6",
-                    "--anyauth", "-u", &auth,
-                    "-X", "POST",
-                    "-H", "Content-Type: text/xml",
-                    "-d", &xml,
-                    &format!("http://{}/ISAPI/ContentMgmt/search", ip),
-                ]);
-                cmd.creation_flags(CREATE_NO_WINDOW);
+                while has_more && position <= 500 {
+                    let xml = format!(
+                        r#"<?xml version="1.0" encoding="utf-8"?><CMSearchDescription><searchID>C92DC285-8F30-0001-40C6-F0EFA8FB18B5</searchID><trackList><trackID>{}01</trackID></trackList><timeSpanList><timeSpan><startTime>{}-{:02}-01T00:00:00Z</startTime><endTime>{}-{:02}-{:02}T23:59:59Z</endTime></timeSpan></timeSpanList><maxResults>100</maxResults><searchResultPostion>{}</searchResultPostion><metadataList><metadataDescriptor>//recordType.meta.std-cgi.com</metadataDescriptor></metadataList></CMSearchDescription>"#,
+                        channel, year, month, year, month, last_day, position
+                    );
 
-                if let Ok(out) = cmd.output() {
-                    let text = String::from_utf8_lossy(&out.stdout);
-                    let target_prefix = format!("{}-{:02}-", year, month);
-                    for part in text.split(&target_prefix).skip(1) {
-                        if part.len() >= 2 {
-                            if let Ok(d) = part[..2].parse::<u32>() {
-                                if d >= 1 && d <= 31 {
-                                    days.insert(d);
+                    let mut cmd = Command::new("curl.exe");
+                    cmd.args([
+                        "-s", "-k", "-L", "--location-trusted", "--connect-timeout", "2", "--max-time", "6",
+                        "--anyauth", "-u", &auth,
+                        "-X", "POST",
+                        "-H", "Content-Type: text/xml",
+                        "-d", &xml,
+                        &format!("http://{}/ISAPI/ContentMgmt/search", ip),
+                    ]);
+                    cmd.creation_flags(CREATE_NO_WINDOW);
+
+                    if let Ok(out) = cmd.output() {
+                        let text = String::from_utf8_lossy(&out.stdout);
+                        let mut found_in_page = 0;
+                        for part in text.split(&target_prefix).skip(1) {
+                            if part.len() >= 2 {
+                                if let Ok(d) = part[..2].parse::<u32>() {
+                                    if d >= 1 && d <= 31 {
+                                        days.insert(d);
+                                        found_in_page += 1;
+                                    }
                                 }
                             }
                         }
+
+                        if text.contains("MORE") && found_in_page > 0 {
+                            position += 64;
+                        } else {
+                            has_more = false;
+                        }
+                    } else {
+                        has_more = false;
                     }
                 }
             } else {

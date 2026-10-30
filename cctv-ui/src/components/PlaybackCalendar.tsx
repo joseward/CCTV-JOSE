@@ -79,12 +79,25 @@ export const PlaybackCalendar: React.FC<PlaybackCalendarProps> = ({
   const scanMonthRecordings = async (force: boolean = false) => {
     if (!activeCamera) return;
     setIsScanning(true);
-    setScanMessage('Consultando disco duro...');
+    setScanMessage(`Consultando grabaciones para ${activeCamera.name}...`);
     try {
       const days = await queryRecordedDays(activeCamera, viewYear, viewMonth, force);
       setRecordedDays(new Set(days));
       if (days.length > 0) {
-        setScanMessage(`${days.length} días con grabaciones disponibles`);
+        const minDay = Math.min(...days);
+        const maxDay = Math.max(...days);
+        setScanMessage(`${days.length} días disponibles (del ${minDay} al ${maxDay})`);
+
+        // If currently selected date has NO recordings for this camera, auto-select latest available day
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        const selectedParts = (selectedDate || '').split('-');
+        const currentSelectedDayNum = selectedParts.length === 3 ? parseInt(selectedParts[2], 10) : 0;
+
+        if (!days.includes(currentSelectedDayNum)) {
+          const latestDay = maxDay;
+          const newDateStr = `${viewYear}-${pad(viewMonth)}-${pad(latestDay)}`;
+          onSelectDate(newDateStr);
+        }
       } else {
         setScanMessage('Sin grabaciones detectadas en este mes');
       }
@@ -98,6 +111,7 @@ export const PlaybackCalendar: React.FC<PlaybackCalendarProps> = ({
   // Trigger scan when camera, year, or month changes
   useEffect(() => {
     if (activeCamera) {
+      setRecordedDays(new Set()); // Reset immediately so previous camera days don't leak
       scanMonthRecordings(false);
     }
   }, [activeCamera?.id, activeCamera?.channel, viewYear, viewMonth]);
