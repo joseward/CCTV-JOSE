@@ -394,6 +394,7 @@ fn set_autostart(enable: bool) -> Result<bool, String> {
         let exe_path = std::env::current_exe().map_err(|e| e.to_string())?;
         let exe_str = exe_path.to_string_lossy().to_string();
 
+        // 1. Registry Run Key
         let mut cmd = Command::new("reg");
         if enable {
             cmd.args([
@@ -404,7 +405,7 @@ fn set_autostart(enable: bool) -> Result<bool, String> {
                 "/t",
                 "REG_SZ",
                 "/d",
-                &format!("\"{}\"", exe_str),
+                &exe_str,
                 "/f",
             ]);
         } else {
@@ -417,7 +418,35 @@ fn set_autostart(enable: bool) -> Result<bool, String> {
             ]);
         }
         cmd.creation_flags(CREATE_NO_WINDOW);
-        let _ = cmd.output().map_err(|e| e.to_string())?;
+        let _ = cmd.output();
+
+        // 2. Startup Folder Shortcut (so it shows in Task Manager -> Inicio!)
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            let startup_dir = PathBuf::from(appdata)
+                .join("Microsoft")
+                .join("Windows")
+                .join("Start Menu")
+                .join("Programs")
+                .join("Startup");
+            let _ = fs::create_dir_all(&startup_dir);
+            let shortcut_path = startup_dir.join("CCTV Unified Monitor.lnk");
+
+            if enable {
+                let ps_script = format!(
+                    "$s=(New-Object -COM WScript.Shell).CreateShortcut('{}');$s.TargetPath='{}';$s.WorkingDirectory='{}';$s.Save()",
+                    shortcut_path.to_string_lossy().replace('\'', "''"),
+                    exe_str.replace('\'', "''"),
+                    exe_path.parent().unwrap_or(&exe_path).to_string_lossy().replace('\'', "''")
+                );
+                let mut ps_cmd = Command::new("powershell");
+                ps_cmd.args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script]);
+                ps_cmd.creation_flags(CREATE_NO_WINDOW);
+                let _ = ps_cmd.output();
+            } else {
+                let _ = fs::remove_file(&shortcut_path);
+            }
+        }
+
         Ok(enable)
     }
     #[cfg(not(windows))]
@@ -430,6 +459,21 @@ fn set_autostart(enable: bool) -> Result<bool, String> {
 fn get_autostart() -> Result<bool, String> {
     #[cfg(windows)]
     {
+        // 1. Check Startup Folder shortcut
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            let shortcut_path = PathBuf::from(appdata)
+                .join("Microsoft")
+                .join("Windows")
+                .join("Start Menu")
+                .join("Programs")
+                .join("Startup")
+                .join("CCTV Unified Monitor.lnk");
+            if shortcut_path.exists() {
+                return Ok(true);
+            }
+        }
+
+        // 2. Check Registry
         const CREATE_NO_WINDOW: u32 = 0x08000000;
         let mut cmd = Command::new("reg");
         cmd.args([
@@ -720,7 +764,20 @@ async fn check_update(app: tauri::AppHandle) -> Result<UpdateInfo, String> {
 }
 
 #[tauri::command]
-async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
+async fn install_update(state: State<'_, AppState>, app: tauri::AppHandle) -> Result<(), String> {
+    // Stop all background engines to release file locks
+    let _ = stop_go2rtc(state.clone());
+    let _ = stop_whatsapp_gateway(state);
+
+    #[cfg(windows)]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let mut cmd = Command::new("cmd");
+        cmd.args(["/c", "taskkill /F /IM go2rtc.exe /T"]);
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        let _ = cmd.output();
+    }
+
     let updater = app.updater().map_err(|e| e.to_string())?;
     if let Some(update) = updater.check().await.map_err(|e| e.to_string())? {
         update.download_and_install(|_chunk, _total| {}, || {}).await.map_err(|e| e.to_string())?;
@@ -780,6 +837,9 @@ pub fn run() {
             let state: State<AppState> = app.state();
             let _ = start_go2rtc(state.clone());
             let _ = start_whatsapp_gateway(state);
+
+            // Ensure startup registration is active on Windows
+            let _ = set_autostart(true);
 
             // System Tray
             let show_i = MenuItem::with_id(app, "show", "Mostrar Monitor CCTV", true, None::<&str>)?;
