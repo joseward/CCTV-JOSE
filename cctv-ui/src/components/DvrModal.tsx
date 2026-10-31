@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { Camera, VendorPreset } from '../types/cctv';
+import { type Camera, type VendorPreset, DEFAULT_FOLDER } from '../types/cctv';
 import { validateDvrCredentials, autoDetectDvrVendor, scanDvrActiveChannels } from '../services/go2rtc';
 import { 
   X, 
@@ -12,12 +12,15 @@ import {
   Eye, 
   EyeOff,
   Sparkles,
-  Search
+  Search,
+  Folder,
+  FolderPlus
 } from 'lucide-react';
 
 export interface DvrFormData {
   originalGroupName?: string;
   name: string;
+  folder?: string;
   vendorPreset: VendorPreset;
   ip: string;
   port: number;
@@ -28,6 +31,7 @@ export interface DvrFormData {
 
 interface ExistingDvrSummary {
   groupName: string;
+  folder?: string;
   ip: string;
   port: number;
   channelCount: number;
@@ -52,6 +56,9 @@ export const DvrModal: React.FC<DvrModalProps> = ({
   const isEditing = !!dvrToEdit?.originalGroupName;
 
   const [name, setName] = useState('');
+  const [folder, setFolder] = useState<string>(DEFAULT_FOLDER);
+  const [isCreatingNewFolder, setIsCreatingNewFolder] = useState<boolean>(false);
+  const [newFolderName, setNewFolderName] = useState<string>('');
   const [vendorPreset, setVendorPreset] = useState<VendorPreset>('dahua');
   const [ip, setIp] = useState('');
   const [port, setPort] = useState(554);
@@ -69,9 +76,11 @@ export const DvrModal: React.FC<DvrModalProps> = ({
     const map = new Map<string, ExistingDvrSummary>();
     for (const c of existingCameras) {
       const grp = (c.group || 'Sin Nombre').trim();
+      const fld = (c.folder || DEFAULT_FOLDER).trim();
       if (!map.has(grp)) {
         map.set(grp, {
           groupName: grp,
+          folder: fld,
           ip: (c.ip || '').trim(),
           port: c.port || 554,
           channelCount: 0,
@@ -85,11 +94,30 @@ export const DvrModal: React.FC<DvrModalProps> = ({
     return Array.from(map.values());
   }, [existingCameras]);
 
+  // Extract available folders
+  const availableFolders = useMemo<string[]>(() => {
+    const set = new Set<string>([DEFAULT_FOLDER]);
+    for (const c of existingCameras) {
+      if (c.folder && c.folder.trim()) set.add(c.folder.trim());
+    }
+    try {
+      const extra = JSON.parse(localStorage.getItem('cctv_custom_folders') || '[]');
+      if (Array.isArray(extra)) {
+        for (const f of extra) if (f && typeof f === 'string' && f.trim()) set.add(f.trim());
+      }
+    } catch {}
+    return Array.from(set);
+  }, [existingCameras]);
+
   // Pre-fill fields when modal opens or dvrToEdit changes
   useEffect(() => {
     if (isOpen) {
       if (dvrToEdit) {
         setName(dvrToEdit.name);
+        const existingFolder = dvrToEdit.folder || existingCameras.find(
+          (c) => c.group === dvrToEdit.originalGroupName || c.group === dvrToEdit.name
+        )?.folder || DEFAULT_FOLDER;
+        setFolder(existingFolder);
         setVendorPreset(dvrToEdit.vendorPreset || 'dahua');
         setIp(dvrToEdit.ip || '');
         setPort(dvrToEdit.port || 554);
@@ -105,6 +133,7 @@ export const DvrModal: React.FC<DvrModalProps> = ({
           suggestedName = `Grabador ${defaultIdx}`;
         }
         setName(suggestedName);
+        setFolder(DEFAULT_FOLDER);
         setVendorPreset('dahua');
         setIp('');
         setPort(554);
@@ -112,11 +141,13 @@ export const DvrModal: React.FC<DvrModalProps> = ({
         setPassword('');
         setChannelCount(8);
       }
+      setIsCreatingNewFolder(false);
+      setNewFolderName('');
       setValState('idle');
       setValMsg('');
       setShowPassword(false);
     }
-  }, [isOpen, dvrToEdit, registeredDvrs]);
+  }, [isOpen, dvrToEdit, registeredDvrs, existingCameras]);
 
   // Real-time duplicate conflict detector
   const duplicateConflict = useMemo<{
@@ -295,9 +326,24 @@ export const DvrModal: React.FC<DvrModalProps> = ({
       return;
     }
 
+    const finalFolder = isCreatingNewFolder && newFolderName.trim() 
+      ? newFolderName.trim() 
+      : (folder.trim() || DEFAULT_FOLDER);
+
+    // If new folder created, save to localStorage
+    if (finalFolder && !availableFolders.includes(finalFolder)) {
+      try {
+        const extra = JSON.parse(localStorage.getItem('cctv_custom_folders') || '[]');
+        if (!extra.includes(finalFolder)) {
+          localStorage.setItem('cctv_custom_folders', JSON.stringify([...extra, finalFolder]));
+        }
+      } catch {}
+    }
+
     onSaveDvr({
       originalGroupName: dvrToEdit?.originalGroupName,
       name: name.trim() || 'DVR Principal',
+      folder: finalFolder,
       vendorPreset,
       ip: ip.trim(),
       port: Number(port) || 554,
@@ -352,6 +398,66 @@ export const DvrModal: React.FC<DvrModalProps> = ({
                 <span>⚠️ Ya existe un grabador registrado con este nombre.</span>
               </p>
             )}
+          </div>
+
+          {/* Group / Folder Assignment */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="font-semibold text-slate-400 flex items-center space-x-1.5">
+                <Folder className="w-3.5 h-3.5 text-amber-400" />
+                <span>Grupo / Carpeta Organizadora</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCreatingNewFolder(!isCreatingNewFolder);
+                  setNewFolderName('');
+                }}
+                className="text-[11px] font-bold text-amber-400 hover:text-amber-300 flex items-center space-x-1"
+              >
+                <FolderPlus className="w-3 h-3" />
+                <span>{isCreatingNewFolder ? '← Elegir de la lista' : '+ Crear nuevo grupo'}</span>
+              </button>
+            </div>
+
+            {isCreatingNewFolder ? (
+              <div className="space-y-1">
+                <input
+                  type="text"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  placeholder="Ej. Planta Alta, Sucursal Mahahual, Bodega..."
+                  className="w-full bg-slate-950 border border-amber-500/80 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-amber-400"
+                  autoFocus
+                />
+                <span className="text-[10px] text-amber-400/80 block">
+                  Se creará este nuevo grupo y se moverá este grabador ahí.
+                </span>
+              </div>
+            ) : (
+              <select
+                value={folder}
+                onChange={(e) => {
+                  if (e.target.value === '__NEW__') {
+                    setIsCreatingNewFolder(true);
+                    setNewFolderName('');
+                  } else {
+                    setFolder(e.target.value);
+                  }
+                }}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-blue-500"
+              >
+                {availableFolders.map((fld) => (
+                  <option key={fld} value={fld}>
+                    📁 {fld}
+                  </option>
+                ))}
+                <option value="__NEW__">➕ + Crear nuevo grupo con otro nombre...</option>
+              </select>
+            )}
+            <p className="mt-1 text-[10px] text-slate-500">
+              Permite agrupar varios DVRs bajo una misma carpeta colapsable en la barra lateral.
+            </p>
           </div>
 
           {/* Vendor Preset Selection */}

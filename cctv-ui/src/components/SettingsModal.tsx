@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { Camera, VendorPreset } from '../types/cctv';
+import { type Camera, type VendorPreset, DEFAULT_FOLDER } from '../types/cctv';
 import { INITIAL_CAMERAS } from '../services/storage';
 import { getActiveStreams, checkGo2RtcHealth, validateDvrCredentials, buildPresetRtspUrls, restartGo2Rtc } from '../services/go2rtc';
 import { 
@@ -38,11 +38,13 @@ import {
   Smartphone,
   Check,
   QrCode,
-  MessageSquare
+  MessageSquare,
+  Folder
 } from 'lucide-react';
 
 export interface DvrSummary {
   groupName: string;
+  folder: string;
   ip: string;
   port: number;
   vendorPreset: VendorPreset;
@@ -185,6 +187,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       const sample = cams[0];
       return {
         groupName: grp,
+        folder: sample.folder || DEFAULT_FOLDER,
         ip: sample.ip,
         port: sample.port || 554,
         vendorPreset: sample.vendorPreset || 'dahua',
@@ -420,7 +423,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               onClick={() => setViewTab(viewTab === 'notifications' ? 'dvrs' : 'notifications')}
               className={`p-2 rounded-lg border transition relative flex items-center justify-center ${
                 viewTab === 'notifications'
-                  ? 'bg-emerald-600/30 text-emerald-400 border-emerald-500/60 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
+                  ? 'bg-slate-800 text-emerald-400 border-slate-700 shadow-sm'
                   : 'bg-slate-900 text-slate-400 hover:text-white border-slate-800 hover:border-slate-700'
               }`}
               title="Vincular WhatsApp y Alertas"
@@ -437,14 +440,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               onClick={() => setViewTab(viewTab === 'updates' ? 'dvrs' : 'updates')}
               className={`p-2 rounded-lg border transition relative flex items-center justify-center ${
                 viewTab === 'updates'
-                  ? 'bg-purple-600/30 text-purple-400 border-purple-500/60 shadow-[0_0_12px_rgba(168,85,247,0.25)]'
+                  ? 'bg-slate-800 text-sky-400 border-slate-700 shadow-sm'
                   : 'bg-slate-900 text-slate-400 hover:text-white border-slate-800 hover:border-slate-700'
               }`}
               title="Centro de Actualizaciones"
             >
-              <RefreshCw className={`w-4 h-4 ${checkingUpdate ? 'animate-spin text-purple-400' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${checkingUpdate ? 'animate-spin text-sky-400' : ''}`} />
               {updateStatus?.available && (
-                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-purple-400 ring-2 ring-slate-950 animate-pulse" />
+                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-sky-400 ring-2 ring-slate-950 animate-pulse" />
               )}
             </button>
 
@@ -615,6 +618,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               <h4 className="font-bold text-white text-sm tracking-wide">{dvr.groupName}</h4>
                               <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-blue-950 border border-blue-800 text-blue-400 uppercase">
                                 {dvr.vendorPreset}
+                              </span>
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-950/60 border border-amber-800/60 text-amber-300 flex items-center space-x-1" title="Grupo organizador">
+                                <Folder className="w-3 h-3 text-amber-400" />
+                                <span>{dvr.folder}</span>
                               </span>
                             </div>
                             <div className="text-[11px] text-slate-400 font-mono flex items-center space-x-3 mt-0.5">
@@ -1128,7 +1135,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               {/* Card 4: Windows Lifecycle & Clean Termination */}
               <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-3">
                 <div className="flex items-center space-x-2 text-slate-200 font-bold text-xs">
-                  <Power className="w-4 h-4 text-purple-400" />
+                  <Power className="w-4 h-4 text-sky-400" />
                   <span>Comportamiento en Windows y Cierre de Procesos</span>
                 </div>
 
@@ -1138,7 +1145,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       type="checkbox"
                       checked={localSettings.autostartWindows}
                       onChange={(e) => setLocalSettings({ ...localSettings, autostartWindows: e.target.checked })}
-                      className="rounded bg-slate-900 border-slate-700 text-purple-600 focus:ring-0"
+                      className="rounded bg-slate-900 border-slate-700 text-sky-600 focus:ring-0"
                     />
                     <span>Iniciar automáticamente con Windows al encender la computadora</span>
                   </label>
@@ -1148,7 +1155,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       type="checkbox"
                       checked={localSettings.minimizeToTrayOnClose}
                       onChange={(e) => setLocalSettings({ ...localSettings, minimizeToTrayOnClose: e.target.checked })}
-                      className="rounded bg-slate-900 border-slate-700 text-purple-600 focus:ring-0"
+                      className="rounded bg-slate-900 border-slate-700 text-sky-600 focus:ring-0"
                     />
                     <span>Minimizar a la bandeja del sistema (junto al reloj) al cerrar con 'X' para no detener la vigilancia</span>
                   </label>
@@ -1166,7 +1173,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <select
                       value={localSettings.streamQualityPreference || 'auto'}
                       onChange={(e) => setLocalSettings({ ...localSettings, streamQualityPreference: e.target.value as any })}
-                      className="bg-slate-900 border border-slate-700 text-xs text-white rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-purple-500 font-medium cursor-pointer"
+                      className="bg-slate-900 border border-slate-700 text-xs text-white rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-sky-500 font-medium cursor-pointer"
                     >
                       <option value="auto">Automático (HD con cambio a Fluido si no se ve)</option>
                       <option value="sub">Siempre Fluido (SD - 100% compatible sin pantalla negra)</option>
@@ -1230,14 +1237,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {viewTab === 'updates' && (
             <div className="space-y-4 animate-in fade-in duration-150 max-w-xl mx-auto py-2">
               <div className="p-6 rounded-2xl border border-slate-800 bg-slate-950/70 text-center space-y-4 shadow-xl">
-                <div className="w-12 h-12 mx-auto rounded-2xl bg-purple-600/10 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-inner">
+                <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-sky-400 shadow-sm">
                   <RefreshCw className={`w-6 h-6 ${checkingUpdate ? 'animate-spin' : ''}`} />
                 </div>
 
                 <div>
                   <h3 className="text-base font-bold text-white">Actualización del Sistema</h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Versión instalada: <strong className="text-emerald-400 font-mono text-sm">{updateStatus?.currentVersion || 'v1.1.5'}</strong>
+                    Versión instalada: <strong className="text-emerald-400 font-mono text-sm">{updateStatus?.currentVersion || 'v1.1.8'}</strong>
                   </p>
                 </div>
 
@@ -1247,9 +1254,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     type="button"
                     onClick={handleCheckUpdate}
                     disabled={checkingUpdate || installingUpdate}
-                    className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center space-x-2 mx-auto"
+                    className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 disabled:bg-slate-900 text-slate-100 font-bold text-xs rounded-xl shadow-sm transition flex items-center justify-center space-x-2 mx-auto"
                   >
-                    <RefreshCw className={`w-3.5 h-3.5 ${checkingUpdate ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`w-3.5 h-3.5 text-sky-400 ${checkingUpdate ? 'animate-spin' : ''}`} />
                     <span>{checkingUpdate ? 'Buscando actualizaciones...' : 'Buscar Actualizaciones'}</span>
                   </button>
                 </div>

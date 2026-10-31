@@ -55,28 +55,28 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={onToggleSidebar}
           className={`p-2 rounded-lg border transition flex items-center justify-center ${
             isSidebarOpen 
-              ? 'bg-blue-600/20 text-blue-400 border-blue-500/50' 
-              : 'bg-slate-950 text-slate-400 hover:text-white border-slate-800'
+              ? 'bg-slate-800 text-slate-200 border-slate-700 shadow-sm' 
+              : 'bg-slate-950 text-slate-400 hover:text-white border-slate-800 hover:border-slate-700'
           }`}
           title={isSidebarOpen ? 'Ocultar panel de DVRs (ganar espacio)' : 'Mostrar panel de DVRs y cámaras'}
         >
           {isSidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeft className="w-4 h-4" />}
         </button>
 
-        <div className="flex items-center space-x-2 text-blue-400 font-bold tracking-wider">
-          <div className="p-1.5 bg-blue-950/80 border border-blue-600/40 rounded-lg shadow-[0_0_12px_rgba(59,130,246,0.3)]">
-            <ShieldCheck className="w-5 h-5 text-blue-400" />
+        <div className="flex items-center space-x-2 text-slate-200 font-bold tracking-wider">
+          <div className="p-1.5 bg-slate-800/80 border border-slate-700 rounded-lg shadow-sm">
+            <ShieldCheck className="w-5 h-5 text-sky-400" />
           </div>
           <div>
-            <span className="text-sm font-extrabold text-white tracking-wider">CCTV UNIFIED</span>
-            <span className="text-[10px] text-blue-400 block font-mono font-medium -mt-0.5">MONITOR PRO</span>
+            <span className="text-sm font-bold text-slate-100 tracking-wider">CCTV UNIFIED</span>
+            <span className="text-[10px] text-slate-400 block font-mono font-medium -mt-0.5">MONITOR PRO</span>
           </div>
         </div>
 
         {/* HW Acceleration & Status Pill */}
         <div className="hidden lg:flex items-center space-x-1.5 bg-slate-950/80 border border-slate-800 px-2.5 py-1 rounded-full text-[11px] font-mono">
-          <Cpu className="w-3.5 h-3.5 text-emerald-400" />
-          <span className="text-emerald-400 font-semibold">WebRTC / MSE D3D11</span>
+          <Cpu className="w-3.5 h-3.5 text-slate-400" />
+          <span className="text-slate-300 font-medium">WebRTC / MSE D3D11</span>
           <span className="text-slate-600">|</span>
           <span className="text-slate-400">{activeStreamsCount} Transmitiendo</span>
         </div>
@@ -90,9 +90,9 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               key={mode}
               onClick={() => onSelectGridMode(mode)}
-              className={`px-3 py-1 rounded-md font-mono font-bold transition flex items-center space-x-1 ${
+              className={`px-3 py-1 rounded-md font-mono font-medium transition flex items-center space-x-1 ${
                 gridMode === mode
-                  ? 'bg-blue-600 text-white shadow'
+                  ? 'bg-slate-800 text-white border border-slate-700 shadow-sm'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
               title={`Cuadrícula ${mode}`}
@@ -106,7 +106,7 @@ export const Header: React.FC<HeaderProps> = ({
         {activeStreamsCount > 0 && (
           <button
             onClick={onClearGrid}
-            className="flex items-center space-x-1 px-2.5 py-1 bg-slate-950 hover:bg-red-950/70 border border-slate-800 hover:border-red-700/60 text-slate-400 hover:text-red-300 rounded-lg text-xs font-semibold transition"
+            className="flex items-center space-x-1 px-2.5 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 rounded-lg text-xs font-medium transition"
             title="Cerrar todos los canales activos del mosaico (detiene transmisión)"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -117,9 +117,9 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right Controls: Clock, Actions & Settings */}
       <div className="flex items-center space-x-2">
-        {/* Live Digital Clock */}
-        <div className="hidden sm:flex items-center px-2.5 py-1 bg-slate-950/80 border border-slate-800 rounded-lg text-xs font-mono font-bold text-emerald-400 tracking-wider">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-ping" />
+        {/* Live Digital Clock (Muted, professional) */}
+        <div className="hidden sm:flex items-center px-2.5 py-1 bg-slate-950/80 border border-slate-800 rounded-lg text-xs font-mono font-medium text-slate-200 tracking-normal">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2" />
           {currentTime}
         </div>
 
@@ -132,13 +132,13 @@ export const Header: React.FC<HeaderProps> = ({
           <Maximize className="w-4 h-4" />
         </button>
 
-        {/* Playback Studio Button */}
+        {/* Playback Studio Button (Refined Corporate Slate) */}
         <button
           onClick={onOpenPlaybackModal}
-          className="flex items-center space-x-1.5 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 rounded-lg text-xs font-bold shadow transition"
+          className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium shadow-sm transition"
           title="Consultar y reproducir grabaciones históricas de discos duros"
         >
-          <Film className="w-4 h-4 text-purple-400" />
+          <Film className="w-4 h-4 text-sky-400" />
           <span className="hidden md:inline">Grabaciones / Playback</span>
         </button>
 

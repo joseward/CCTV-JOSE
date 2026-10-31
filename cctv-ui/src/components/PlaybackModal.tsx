@@ -488,15 +488,15 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 bg-slate-950/90 select-none">
           <div className="flex items-center space-x-3">
-            <div className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/30 text-purple-400">
+            <div className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-sky-400 shadow-sm">
               <Film className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h3 className="text-base font-bold text-white tracking-wide">
+                <h3 className="text-base font-bold text-slate-100 tracking-wide">
                   Reproductor de Grabaciones Locales (DVR / NVR)
                 </h3>
-                <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono text-[10px] font-bold border border-purple-500/40">
+                <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono text-[10px] font-medium border border-slate-700">
                   PLAYBACK STUDIO
                 </span>
               </div>
@@ -528,12 +528,12 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
         <div className="p-3 bg-slate-950/70 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
           {/* Camera Picker */}
           <div className="flex items-center space-x-2 flex-1 min-w-[260px]">
-            <Video className="w-4 h-4 text-blue-400 flex-shrink-0" />
+            <Video className="w-4 h-4 text-slate-400 flex-shrink-0" />
             <span className="font-semibold text-slate-300">Cámara:</span>
             <select
               value={selectedCameraId}
               onChange={(e) => setSelectedCameraId(e.target.value)}
-              className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-semibold text-xs focus:outline-none focus:border-purple-500"
+              className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-semibold text-xs focus:outline-none focus:border-sky-500"
             >
               {Object.entries(cameraGroups).map(([grp, cams]) => (
                 <optgroup key={grp} label={grp} className="bg-slate-950 text-slate-400 font-bold">
@@ -584,7 +584,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
 
           {/* Time Picker & Load Button */}
           <div className="flex items-center space-x-2">
-            <Clock className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <Clock className="w-4 h-4 text-slate-400 flex-shrink-0" />
             <span className="font-semibold text-slate-300">Hora:</span>
             <input
               type="time"
@@ -595,7 +595,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                 const [h, m, s] = e.target.value.split(':').map(Number);
                 setCurrentSecondsOfDay((h || 0) * 3600 + (m || 0) * 60 + (s || 0));
               }}
-              className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-white text-xs font-mono focus:outline-none focus:border-emerald-500"
+              className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-white text-xs font-mono focus:outline-none focus:border-sky-500"
             />
 
             {/* Quick 1-hour step buttons */}
@@ -630,9 +630,9 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
               type="button"
               onClick={() => launchPlaybackAt(currentSecondsOfDay)}
               disabled={isLoading}
-              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold shadow-md transition"
+              className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 rounded-lg font-semibold shadow-sm transition"
             >
-              <Play className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+              <Play className={`w-3.5 h-3.5 text-sky-400 ${isLoading ? 'animate-spin' : ''}`} />
               <span>{isLoading ? 'Cargando...' : 'Cargar Grabación'}</span>
             </button>
           </div>
@@ -663,8 +663,8 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
 
           {isLoading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/75 z-20 space-y-2 pointer-events-none">
-              <RefreshCw className="w-8 h-8 text-purple-400 animate-spin" />
-              <span className="text-xs font-bold text-white tracking-wide">
+              <RefreshCw className="w-8 h-8 text-sky-400 animate-spin" />
+              <span className="text-xs font-medium text-slate-100 tracking-wide">
                 Conectando con el grabador {activeCamera?.group} ({activeCamera?.ip})...
               </span>
               <span className="text-[11px] text-slate-400 font-mono">
@@ -675,13 +675,13 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
 
           {playbackError && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 z-20 p-6 text-center space-y-2">
-              <AlertCircle className="w-8 h-8 text-red-400" />
-              <span className="text-sm font-bold text-red-300">No se pudo reproducir la grabación</span>
+              <AlertCircle className="w-8 h-8 text-rose-400" />
+              <span className="text-sm font-semibold text-rose-300">No se pudo reproducir la grabación</span>
               <span className="text-xs text-slate-400 max-w-md">{playbackError}</span>
               <button
                 type="button"
                 onClick={() => launchPlaybackAt(currentSecondsOfDay)}
-                className="px-3 py-1.5 bg-red-950/60 hover:bg-red-900 border border-red-800 text-red-200 rounded-lg text-xs font-semibold mt-2"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-lg text-xs font-semibold mt-2 shadow-sm"
               >
                 Reintentar
               </button>
@@ -690,27 +690,27 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
 
           {/* Active Overlay Watermark */}
           {activeStreamName && isPlaying && (
-            <div className="absolute top-3 left-3 bg-slate-950/85 backdrop-blur-md border border-slate-800 px-3 py-1.5 rounded-lg text-white font-mono text-xs flex items-center space-x-2 z-10 pointer-events-none shadow-lg">
-              <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse" />
-              <span className="font-bold text-purple-300">PLAYBACK:</span>
+            <div className="absolute top-3 left-3 bg-slate-950/90 backdrop-blur-md border border-slate-800 px-3 py-1.5 rounded-lg text-white font-mono text-xs flex items-center space-x-2 z-10 pointer-events-none shadow-md">
+              <span className="w-2 h-2 rounded-full bg-sky-400" />
+              <span className="font-semibold text-slate-300">PLAYBACK:</span>
               <span>{activeCamera?.name}</span>
               <span className="text-slate-500">|</span>
-              <span className="text-emerald-400 font-bold">{selectedDate} {formatSecondsToTime(currentSecondsOfDay)}</span>
+              <span className="text-slate-200 font-medium">{selectedDate} {formatSecondsToTime(currentSecondsOfDay)}</span>
             </div>
           )}
 
           {/* Juan / EseeCloud Native Playback Notice & Web Portal Quick Access */}
           {activeCamera?.vendorPreset === 'juan' && (
-            <div className="absolute top-12 left-3 right-3 z-20 bg-blue-950/95 border border-blue-500/80 text-blue-200 px-4 py-2.5 rounded-xl shadow-xl backdrop-blur flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs animate-in fade-in">
+            <div className="absolute top-12 left-3 right-3 z-20 bg-slate-900/95 border border-slate-700 text-slate-300 px-4 py-2.5 rounded-xl shadow-lg backdrop-blur flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs animate-in fade-in">
               <div className="flex items-center space-x-2.5">
-                <Globe className="w-5 h-5 text-blue-400 flex-shrink-0" />
+                <Globe className="w-5 h-5 text-sky-400 flex-shrink-0" />
                 <div className="space-y-0.5">
-                  <div className="font-bold text-white flex items-center space-x-1.5">
+                  <div className="font-semibold text-slate-100 flex items-center space-x-1.5">
                     <span>NVR Juan / EseeCloud (Grabaciones en disco de 1TB)</span>
-                    <span className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-400/40 px-1.5 py-0.5 rounded font-mono font-bold">100% Grabando</span>
+                    <span className="text-[10px] bg-slate-800 text-slate-300 border border-slate-700 px-1.5 py-0.5 rounded font-mono font-medium">Grabando</span>
                   </div>
-                  <p className="text-[11px] text-blue-200/90 leading-tight">
-                    Este grabador reproduce sus archivos por su plataforma web nativa (puerto 10000). Consulta los días grabados en el calendario arriba o abre el reproductor web directo.
+                  <p className="text-[11px] text-slate-400 leading-tight">
+                    Este grabador reproduce sus archivos por su plataforma web nativa. Consulta los días grabados en el calendario arriba o abre el reproductor web directo.
                   </p>
                 </div>
               </div>
@@ -719,9 +719,9 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                 onClick={() => {
                   window.open(`http://${activeCamera.ip}/#/playback`, '_blank');
                 }}
-                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-xs whitespace-nowrap shadow flex items-center space-x-1.5 transition self-end sm:self-auto cursor-pointer"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-medium rounded-lg text-xs whitespace-nowrap shadow-sm flex items-center space-x-1.5 transition self-end sm:self-auto cursor-pointer"
               >
-                <ExternalLink className="w-3.5 h-3.5" />
+                <ExternalLink className="w-3.5 h-3.5 text-sky-400" />
                 <span>Abrir Reproductor Web del NVR</span>
               </button>
             </div>
@@ -729,7 +729,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
 
           {/* Warning Banner when video is black or codec unsupported */}
           {videoRenderWarning && activeCamera?.vendorPreset !== 'juan' && (
-            <div className="absolute top-12 left-3 right-3 z-20 bg-amber-950/95 border border-amber-600/80 text-amber-200 px-4 py-2.5 rounded-xl shadow-xl backdrop-blur flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs animate-in fade-in">
+            <div className="absolute top-12 left-3 right-3 z-20 bg-slate-900/95 border border-amber-800/50 text-slate-300 px-4 py-2.5 rounded-xl shadow-lg backdrop-blur flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs animate-in fade-in">
               <div className="flex items-center space-x-2">
                 <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0" />
                 <span>{videoRenderWarning}</span>
@@ -742,7 +742,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                   setDownloadStartTime(formatSecondsToTime(currentSecondsOfDay));
                   setIsDownloadModalOpen(true);
                 }}
-                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs whitespace-nowrap shadow flex items-center space-x-1 transition self-end sm:self-auto cursor-pointer"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-700/60 font-semibold rounded-lg text-xs whitespace-nowrap shadow-sm flex items-center space-x-1 transition self-end sm:self-auto cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Descargar Evidencia MP4</span>
@@ -752,22 +752,22 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
 
           {/* Snapshot feedback toast with "Abrir Carpeta" */}
           {snapshotToast && (
-            <div className="absolute top-3 right-3 bg-emerald-950/95 border border-emerald-500/80 text-white px-4 py-2.5 rounded-xl text-xs font-semibold shadow-2xl z-30 flex items-center space-x-3 animate-in fade-in slide-in-from-top-3">
+            <div className="absolute top-3 right-3 bg-slate-900 border border-slate-700 text-white px-4 py-2.5 rounded-xl text-xs font-medium shadow-xl z-30 flex items-center space-x-3 animate-in fade-in slide-in-from-top-3">
               <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
               <div>
-                <p className="font-bold text-emerald-300">{snapshotToast.message}</p>
+                <p className="font-semibold text-slate-100">{snapshotToast.message}</p>
                 {snapshotToast.path && (
-                  <p className="text-[10px] text-slate-300 font-mono truncate max-w-xs">{snapshotToast.path}</p>
+                  <p className="text-[10px] text-slate-400 font-mono truncate max-w-xs">{snapshotToast.path}</p>
                 )}
               </div>
               {snapshotToast.path && (
                 <button
                   type="button"
                   onClick={() => openFolderAndSelect(snapshotToast.path!)}
-                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[11px] font-bold flex items-center space-x-1 transition shadow"
+                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded text-[11px] font-medium flex items-center space-x-1 transition shadow-sm"
                   title="Abrir ubicación en el explorador de Windows"
                 >
-                  <FolderOpen className="w-3.5 h-3.5" />
+                  <FolderOpen className="w-3.5 h-3.5 text-sky-400" />
                   <span>Abrir Carpeta</span>
                 </button>
               )}
@@ -780,8 +780,8 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
           <div className="bg-slate-950 border-t border-slate-800 px-5 py-2.5 select-none transition-all">
             <div className="flex items-center justify-between text-xs mb-1.5">
               <div className="flex items-center space-x-2">
-                <FileVideo className="w-4 h-4 text-purple-400" />
-                <span className="font-bold text-white">{activeDownload.fileName}</span>
+                <FileVideo className="w-4 h-4 text-sky-400" />
+                <span className="font-semibold text-white">{activeDownload.fileName}</span>
                 <span className="text-[10px] text-slate-400 font-mono">
                   ({formatBytes(activeDownload.bytesDownloaded)}
                   {activeDownload.status === 'downloading' && activeDownload.speedBps > 0 && (
@@ -793,13 +793,13 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
               <div className="flex items-center space-x-3">
                 {activeDownload.status === 'downloading' && (
                   <>
-                    <span className="font-mono font-bold text-purple-400">{activeDownload.percentage}%</span>
+                    <span className="font-mono font-medium text-sky-400">{activeDownload.percentage}%</span>
                     <button
                       type="button"
                       onClick={handleCancelDownload}
-                      className="flex items-center space-x-1 px-2 py-0.5 bg-red-950/70 hover:bg-red-900 border border-red-800/80 text-red-300 rounded text-[11px] font-semibold transition"
+                      className="flex items-center space-x-1 px-2 py-0.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 rounded text-[11px] font-medium transition"
                     >
-                      <StopCircle className="w-3 h-3" />
+                      <StopCircle className="w-3 h-3 text-rose-400" />
                       <span>Cancelar</span>
                     </button>
                   </>
@@ -807,16 +807,16 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
 
                 {activeDownload.status === 'completed' && (
                   <div className="flex items-center space-x-2">
-                    <span className="text-emerald-400 font-bold flex items-center space-x-1">
+                    <span className="text-emerald-400 font-medium flex items-center space-x-1">
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>Descarga Completada</span>
                     </span>
                     <button
                       type="button"
                       onClick={() => openFolderAndSelect(activeDownload.filePath)}
-                      className="flex items-center space-x-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[11px] font-bold shadow transition"
+                      className="flex items-center space-x-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded text-[11px] font-medium shadow-sm transition"
                     >
-                      <FolderOpen className="w-3.5 h-3.5" />
+                      <FolderOpen className="w-3.5 h-3.5 text-sky-400" />
                       <span>Abrir Carpeta</span>
                     </button>
                     <button
@@ -831,7 +831,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                 )}
 
                 {activeDownload.status === 'error' && (
-                  <div className="flex items-center space-x-2 text-red-400">
+                  <div className="flex items-center space-x-2 text-rose-400">
                     <AlertTriangle className="w-3.5 h-3.5" />
                     <span>{activeDownload.error || 'Error en la descarga'}</span>
                     <button
@@ -847,14 +847,14 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
             </div>
 
             {/* Progress Bar Track */}
-            <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+            <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden border border-slate-800">
               <div
                 className={`h-full transition-all duration-200 ${
                   activeDownload.status === 'completed'
                     ? 'bg-emerald-500'
                     : activeDownload.status === 'error'
-                    ? 'bg-red-500'
-                    : 'bg-purple-600 animate-pulse'
+                    ? 'bg-rose-500'
+                    : 'bg-sky-500'
                 }`}
                 style={{ width: `${activeDownload.percentage}%` }}
               />
@@ -866,9 +866,9 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
         <div className="bg-slate-950 px-5 py-2.5 border-t border-slate-800/90 select-none">
           <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono mb-1.5">
             <div className="flex items-center space-x-2">
-              <Clock className="w-3.5 h-3.5 text-purple-400" />
+              <Clock className="w-3.5 h-3.5 text-slate-400" />
               <span>Línea de Tiempo (24 Horas):</span>
-              <strong className="text-white bg-purple-950/60 border border-purple-800 px-1.5 py-0.5 rounded">
+              <strong className="text-slate-200 bg-slate-900 border border-slate-700 px-1.5 py-0.5 rounded">
                 {formatSecondsToTime(currentSecondsOfDay)}
               </strong>
             </div>
@@ -892,20 +892,20 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
             </div>
 
             {/* Simulated Active Recorded Ribbon */}
-            <div className="absolute inset-y-1.5 left-0 right-0 bg-purple-500/10 border-y border-purple-500/20 pointer-events-none" />
+            <div className="absolute inset-y-1.5 left-0 right-0 bg-sky-950/30 border-y border-sky-850/40 pointer-events-none" />
 
             {/* Progress Played Fill */}
             <div
-              className="absolute top-0 bottom-0 left-0 bg-purple-600/30 border-r-2 border-purple-400 pointer-events-none transition-all duration-100"
+              className="absolute top-0 bottom-0 left-0 bg-sky-600/15 border-r border-sky-400 pointer-events-none transition-all duration-100"
               style={{ width: `${timelinePercent}%` }}
             />
 
             {/* Current Scrubber Needle */}
             <div
-              className="absolute top-0 bottom-0 w-1 bg-red-500 z-10 pointer-events-none shadow-[0_0_8px_rgba(239,68,68,0.8)]"
+              className="absolute top-0 bottom-0 w-0.5 bg-sky-400 z-10 pointer-events-none"
               style={{ left: `${timelinePercent}%` }}
             >
-              <div className="w-2.5 h-2.5 bg-red-500 rounded-full -ml-[4px] -mt-0.5 shadow" />
+              <div className="w-2 h-2 bg-sky-400 rounded-full -ml-[3.5px] -mt-0.5 shadow-sm" />
             </div>
           </div>
         </div>
@@ -917,7 +917,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
             <button
               type="button"
               onClick={() => jumpSeconds(-300)}
-              className="px-2 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg font-mono font-semibold text-[11px] transition"
+              className="px-2 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg font-mono font-medium text-[11px] transition"
               title="Retroceder 5 minutos"
             >
               -5m
@@ -925,7 +925,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
             <button
               type="button"
               onClick={() => jumpSeconds(-60)}
-              className="px-2 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg font-mono font-semibold text-[11px] transition"
+              className="px-2 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg font-mono font-medium text-[11px] transition"
               title="Retroceder 1 minuto"
             >
               -1m
@@ -933,7 +933,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
             <button
               type="button"
               onClick={() => jumpSeconds(-10)}
-              className="px-2 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg font-mono font-semibold text-[11px] transition"
+              className="px-2 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg font-mono font-medium text-[11px] transition"
               title="Retroceder 10 segundos"
             >
               -10s
@@ -943,10 +943,10 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
             <button
               type="button"
               onClick={togglePlayPause}
-              className={`p-2.5 rounded-full shadow-lg transition flex items-center justify-center ${
+              className={`p-2.5 rounded-full shadow transition flex items-center justify-center ${
                 isPlaying 
-                  ? 'bg-amber-600 hover:bg-amber-500 text-white' 
-                  : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-900/30'
+                  ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-sm' 
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 shadow-sm'
               }`}
               title={isPlaying ? 'Pausar video' : 'Reproducir video'}
             >
@@ -956,7 +956,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
             <button
               type="button"
               onClick={() => jumpSeconds(10)}
-              className="px-2 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg font-mono font-semibold text-[11px] transition"
+              className="px-2 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg font-mono font-medium text-[11px] transition"
               title="Avanzar 10 segundos"
             >
               +10s
@@ -964,7 +964,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
             <button
               type="button"
               onClick={() => jumpSeconds(60)}
-              className="px-2 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg font-mono font-semibold text-[11px] transition"
+              className="px-2 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg font-mono font-medium text-[11px] transition"
               title="Avanzar 1 minuto"
             >
               +1m
@@ -972,7 +972,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
             <button
               type="button"
               onClick={() => jumpSeconds(300)}
-              className="px-2 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg font-mono font-semibold text-[11px] transition"
+              className="px-2 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg font-mono font-medium text-[11px] transition"
               title="Avanzar 5 minutos"
             >
               +5m
@@ -981,7 +981,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
 
           {/* Speed Selector */}
           <div className="flex items-center space-x-1.5 bg-slate-900 border border-slate-800 p-1 rounded-lg">
-            <span className="text-[10px] text-slate-500 font-semibold px-1">Velocidad:</span>
+            <span className="text-[10px] text-slate-500 font-medium px-1">Velocidad:</span>
             {[0.5, 1, 2, 4].map((spd) => (
               <button
                 key={spd}
@@ -993,10 +993,10 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                     if (v) v.playbackRate = spd;
                   }
                 }}
-                className={`px-2 py-0.5 rounded font-mono font-bold text-[11px] transition ${
+                className={`px-2 py-0.5 rounded font-mono font-medium text-[11px] transition border ${
                   playbackSpeed === spd
-                    ? 'bg-purple-600 text-white'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'bg-slate-800 text-sky-300 border-slate-700'
+                    : 'border-transparent text-slate-400 hover:text-white'
                 }`}
               >
                 {spd}x
@@ -1019,25 +1019,25 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
               className="p-2 text-slate-400 hover:text-white bg-slate-900 border border-slate-800 rounded-lg transition"
               title={isMuted ? 'Activar audio' : 'Silenciar audio'}
             >
-              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
+              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-sky-400" />}
             </button>
 
-            {/* Snapshot Evidence Button (Opens Windows File Picker) */}
+            {/* Snapshot Evidence Button */}
             <button
               type="button"
               onClick={handleTakeSnapshot}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 border border-cyan-700/80 rounded-lg font-semibold transition shadow"
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-lg font-medium transition shadow-sm"
               title="Guardar foto de evidencia eligiendo carpeta de destino"
             >
-              <SnapshotIcon className="w-4 h-4 text-cyan-400" />
+              <SnapshotIcon className="w-4 h-4 text-sky-400" />
               <span>Guardar Foto</span>
             </button>
 
-            {/* Export Clip Button (Opens Advanced Download Modal) */}
+            {/* Export Clip Button */}
             <button
               type="button"
               onClick={handleOpenDownloadModal}
-              className="flex items-center space-x-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-semibold transition shadow"
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 rounded-lg font-medium transition shadow-sm"
               title="Descargar clip de video eligiendo cámara, rango de horario o minutos"
             >
               <Download className="w-4 h-4" />
@@ -1050,7 +1050,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
         {activeRtspUrl && (
           <div className="px-4 py-1 bg-slate-950/95 border-t border-slate-800/60 text-[10px] font-mono text-slate-500 truncate flex items-center justify-between">
             <span className="truncate">RTSP Playback: <span className="text-slate-400 select-all">{activeRtspUrl}</span></span>
-            <span className="text-purple-400/80 font-bold ml-2 flex-shrink-0">D3D11 / WebSockets</span>
+            <span className="text-slate-400 font-medium ml-2 flex-shrink-0">D3D11 / WebSockets</span>
           </div>
         )}
       </div>
@@ -1061,7 +1061,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 max-w-lg w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-              <div className="flex items-center space-x-2 text-purple-400">
+              <div className="flex items-center space-x-2 text-sky-400">
                 <FileVideo className="w-5 h-5" />
                 <h4 className="text-sm font-bold text-white tracking-wide">Descargar Grabación en Video MP4</h4>
               </div>
@@ -1082,7 +1082,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                 <select
                   value={downloadCameraId}
                   onChange={(e) => setDownloadCameraId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white font-semibold text-xs focus:outline-none focus:border-purple-500"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white font-semibold text-xs focus:outline-none focus:border-sky-500"
                 >
                   {Object.entries(cameraGroups).map(([grp, cams]) => (
                     <optgroup key={grp} label={grp} className="bg-slate-950 text-slate-400 font-bold">
@@ -1102,9 +1102,9 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                   <label className="text-slate-400 font-semibold">
                     2. Fecha de la grabación:
                   </label>
-                  <span className="text-[10px] text-emerald-400 font-semibold flex items-center space-x-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>Días verdes = Con grabaciones detectadas</span>
+                  <span className="text-[10px] text-slate-400 font-medium flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <span>Días marcados = Grabaciones disponibles</span>
                   </span>
                 </div>
                 <PlaybackCalendar
@@ -1125,21 +1125,21 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setDownloadRangeMode('range')}
-                    className={`py-1.5 px-3 rounded-lg font-bold text-xs transition ${
+                    className={`py-1.5 px-3 rounded-lg font-medium text-xs transition border ${
                       downloadRangeMode === 'range'
-                        ? 'bg-purple-600 text-white shadow'
-                        : 'text-slate-400 hover:text-white'
+                        ? 'bg-slate-800 text-sky-300 border-slate-700 shadow-sm'
+                        : 'border-transparent text-slate-400 hover:text-white'
                     }`}
                   >
-                    ⏰ De tal hora a tal hora (Rango 24h)
+                    ⏰ Rango de horas (Inicio / Fin)
                   </button>
                   <button
                     type="button"
                     onClick={() => setDownloadRangeMode('duration')}
-                    className={`py-1.5 px-3 rounded-lg font-bold text-xs transition ${
+                    className={`py-1.5 px-3 rounded-lg font-medium text-xs transition border ${
                       downloadRangeMode === 'duration'
-                        ? 'bg-purple-600 text-white shadow'
-                        : 'text-slate-400 hover:text-white'
+                        ? 'bg-slate-800 text-sky-300 border-slate-700 shadow-sm'
+                        : 'border-transparent text-slate-400 hover:text-white'
                     }`}
                   >
                     ⚡ Por Minutos (Duración Rápida)
@@ -1147,7 +1147,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                 </div>
               </div>
 
-              {/* Mode A: Exact Time Range (Pure 24 Hours) */}
+              {/* Mode A: Exact Time Range */}
               {downloadRangeMode === 'range' && (
                 <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1197,7 +1197,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                         const endSec = Math.min(86399, currentSecondsOfDay + 900);
                         setDownloadEndTime(formatSecondsToTime(endSec));
                       }}
-                      className="text-purple-400 hover:text-purple-300 font-semibold underline flex items-center space-x-1"
+                      className="text-sky-400 hover:text-sky-300 font-medium underline flex items-center space-x-1"
                     >
                       <Clock className="w-3.5 h-3.5" />
                       <span>Copiar hora del reproductor a Inicio (+15m a Fin)</span>
@@ -1212,7 +1212,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                       if (diffSec <= 0) {
                         return (
                           <div className="flex items-center space-x-2">
-                            <span className="text-amber-400 font-bold flex items-center space-x-1">
+                            <span className="text-amber-400 font-medium flex items-center space-x-1">
                               <AlertTriangle className="w-3.5 h-3.5" />
                               <span>Fin debe ser mayor a Inicio</span>
                             </span>
@@ -1222,7 +1222,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                                 const newEnd = Math.min(86399, sSec + 900);
                                 setDownloadEndTime(formatSecondsToTime(newEnd));
                               }}
-                              className="px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded text-[10px] font-bold transition"
+                              className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 rounded text-[10px] font-medium transition"
                             >
                               Ajustar +15 min
                             </button>
@@ -1233,7 +1233,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                       const secs = diffSec % 60;
                       const estMb = ((diffSec * 2.5) / 8).toFixed(1);
                       return (
-                        <div className="flex items-center space-x-1.5 text-emerald-400 font-mono font-bold">
+                        <div className="flex items-center space-x-1.5 text-slate-300 font-mono font-medium">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                           <span>Duración: {mins > 0 ? `${mins}m ` : ''}{secs}s • Peso: ~{estMb} MB</span>
                         </div>
@@ -1264,7 +1264,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                   </div>
 
                   <div>
-                    <span className="block text-slate-400 text-[11px] font-semibold mb-1.5">
+                    <span className="block text-slate-400 text-[11px] font-medium mb-1.5">
                       Duración del fragmento:
                     </span>
                     <div className="grid grid-cols-4 gap-1.5 font-mono text-[11px]">
@@ -1282,9 +1282,9 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                           key={opt.sec}
                           type="button"
                           onClick={() => setDownloadDurationSeconds(opt.sec)}
-                          className={`py-1.5 px-2 rounded-lg font-bold border transition ${
+                          className={`py-1.5 px-2 rounded-lg font-medium border transition ${
                             downloadDurationSeconds === opt.sec
-                              ? 'bg-purple-600 text-white border-purple-400 shadow'
+                              ? 'bg-slate-800 text-sky-300 border-slate-600 shadow-sm'
                               : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800 hover:text-white'
                           }`}
                         >
@@ -1294,7 +1294,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="text-right text-[11px] font-mono text-emerald-400 font-bold pt-1">
+                  <div className="text-right text-[11px] font-mono text-slate-300 font-medium pt-1">
                     Duración: {Math.round(downloadDurationSeconds / 60)} min • Peso estimado: ~{((downloadDurationSeconds * 2.5) / 8).toFixed(1)} MB
                   </div>
                 </div>
@@ -1310,16 +1310,16 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
               <button
                 type="button"
                 onClick={() => setIsDownloadModalOpen(false)}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={handleStartDownloadClip}
-                className="flex items-center space-x-1.5 px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold shadow-lg transition"
+                className="flex items-center space-x-1.5 px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 rounded-lg text-xs font-semibold shadow-sm transition"
               >
-                <FolderOpen className="w-3.5 h-3.5" />
+                <FolderOpen className="w-3.5 h-3.5 text-sky-400" />
                 <span>Elegir Ubicación y Descargar</span>
               </button>
             </div>

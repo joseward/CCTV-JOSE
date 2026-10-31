@@ -1,10 +1,13 @@
 export type VendorPreset = 'hikvision' | 'dahua' | 'uniview' | 'juan' | 'custom' | 'demo';
 
+export const DEFAULT_FOLDER = 'Grupo predefinido';
+
 export type AspectRatio = '16:9' | '4:3' | 'fill' | 'contain';
 
 export interface DvrDevice {
   id: string;
   name: string;
+  folder?: string; // Top-level grouping folder
   vendorPreset: VendorPreset;
   ip: string;
   port: number;
@@ -17,7 +20,8 @@ export interface Camera {
   id: string;
   dvrId?: string;
   name: string;
-  group: string; // DVR / NVR name or location
+  group: string; // DVR / NVR name (e.g., "ZONA C", "ZOTANO")
+  folder?: string; // Top-level grouping folder (e.g., "Grupo predefinido")
   vendorPreset: VendorPreset;
   ip: string;
   port: number;

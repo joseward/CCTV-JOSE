@@ -46,7 +46,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     return this.props.children;
   }
 }
-import type { Camera, GridMode } from './types/cctv';
+import { type Camera, type GridMode, DEFAULT_FOLDER } from './types/cctv';
 import { loadSavedCameras, saveCamerasToStorage } from './services/storage';
 import { syncCameraStreams, checkGo2RtcHealth, buildPresetRtspUrls, restartGo2Rtc } from './services/go2rtc';
 import { Header } from './components/Header';
@@ -209,6 +209,7 @@ export function App() {
     setDvrToEdit({
       originalGroupName: groupName,
       name: groupName,
+      folder: sample.folder || DEFAULT_FOLDER,
       vendorPreset: sample.vendorPreset || 'dahua',
       ip: sample.ip,
       port: sample.port || 554,
@@ -217,6 +218,61 @@ export function App() {
       channelCount: dvrCams.length,
     });
     setIsDvrModalOpen(true);
+  }, [cameras]);
+
+  // Move all cameras of a DVR to another folder/group
+  const handleMoveDvrToFolder = useCallback((groupName: string, targetFolder: string) => {
+    const cleanFolder = targetFolder.trim() || DEFAULT_FOLDER;
+    setCameras((prev) => {
+      const updated = prev.map((c) =>
+        c.group === groupName ? { ...c, folder: cleanFolder } : c
+      );
+      saveCamerasToStorage(updated);
+      return updated;
+    });
+  }, []);
+
+  // Rename a folder across all cameras and custom folder storage
+  const handleRenameFolder = useCallback((oldFolder: string, newFolder: string) => {
+    const cleanNew = newFolder.trim();
+    if (!cleanNew || cleanNew === oldFolder) return;
+    try {
+      const extra: string[] = JSON.parse(localStorage.getItem('cctv_custom_folders') || '[]');
+      const updatedExtra = extra.map((f) => (f === oldFolder ? cleanNew : f));
+      if (!updatedExtra.includes(cleanNew)) updatedExtra.push(cleanNew);
+      localStorage.setItem('cctv_custom_folders', JSON.stringify(updatedExtra));
+    } catch {}
+
+    setCameras((prev) => {
+      const updated = prev.map((c) => {
+        const cur = c.folder || DEFAULT_FOLDER;
+        return cur === oldFolder ? { ...c, folder: cleanNew } : c;
+      });
+      saveCamerasToStorage(updated);
+      return updated;
+    });
+  }, []);
+
+  // Play all cameras belonging to a folder
+  const handlePlayAllFolderCameras = useCallback((folderName: string) => {
+    const folderCams = cameras.filter((c) => (c.folder || DEFAULT_FOLDER) === folderName && c.enabled);
+    if (folderCams.length === 0) return;
+
+    let targetMode: GridMode = '2x2';
+    if (folderCams.length === 1) targetMode = '1x1';
+    else if (folderCams.length <= 4) targetMode = '2x2';
+    else if (folderCams.length <= 9) targetMode = '3x3';
+    else targetMode = '4x4';
+
+    const count = targetMode === '1x1' ? 1 : targetMode === '2x2' ? 4 : targetMode === '3x3' ? 9 : 16;
+    setGridMode(targetMode);
+
+    const newSlots = Array(count).fill(null);
+    folderCams.slice(0, count).forEach((cam, idx) => {
+      newSlots[idx] = cam.id;
+    });
+    setSlots(newSlots);
+    setMaximizedCameraId(null);
   }, [cameras]);
 
   // Open Maintenance & Health Hub modal for a DVR
@@ -254,7 +310,8 @@ export function App() {
 
   // Save DVR (handles both Create and Edit)
   const handleSaveDvr = useCallback((formData: DvrFormData) => {
-    const { originalGroupName, name, vendorPreset, ip, port, username, password, channelCount } = formData;
+    const { originalGroupName, name, folder, vendorPreset, ip, port, username, password, channelCount } = formData;
+    const targetFolder = (folder && folder.trim()) || DEFAULT_FOLDER;
 
     const cleanIp = ip.trim().toLowerCase();
     const cleanName = name.trim().toLowerCase();
@@ -291,6 +348,7 @@ export function App() {
             newDvrCams.push({
               ...existingCam,
               group: name,
+              folder: targetFolder,
               vendorPreset,
               ip,
               port,
@@ -304,6 +362,7 @@ export function App() {
               id: `cam-${Date.now()}-ch${ch}`,
               name: `Cámara ${ch.toString().padStart(2, '0')}`,
               group: name,
+              folder: targetFolder,
               vendorPreset,
               ip,
               port,
@@ -328,6 +387,7 @@ export function App() {
             id: `cam-${Date.now()}-ch${ch}`,
             name: `Cámara ${ch.toString().padStart(2, '0')}`,
             group: name,
+            folder: targetFolder,
             vendorPreset,
             ip,
             port,
@@ -348,7 +408,7 @@ export function App() {
       syncCameraStreams(updated);
       return updated;
     });
-  }, []);
+  }, [cameras]);
 
   // Save single camera
   const handleSaveCamera = useCallback((camera: Camera) => {
@@ -602,8 +662,11 @@ export function App() {
           onAssignCameraToSlot={handleAssignCameraToSlot}
           onViewSingleCamera={handleViewSingleCamera}
           onPlayAllDvrCameras={handlePlayAllDvrCameras}
+          onPlayAllFolderCameras={handlePlayAllFolderCameras}
           onCloseDvrCameras={handleCloseDvrCameras}
           onEditDvr={handleEditDvr}
+          onMoveDvrToFolder={handleMoveDvrToFolder}
+          onRenameFolder={handleRenameFolder}
           onOpenMaintenance={handleOpenMaintenance}
           onOpenPlayback={(camId) => {
             setPlaybackCameraId(camId);

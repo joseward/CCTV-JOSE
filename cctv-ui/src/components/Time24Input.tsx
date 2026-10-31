@@ -51,10 +51,10 @@ export const Time24Input: React.FC<Time24InputProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
         <span className="flex items-center space-x-1.5">
-          <Clock className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+          <Clock className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
           <span>{label}</span>
         </span>
-        <span className="text-[10px] font-mono text-purple-300 bg-purple-950/60 border border-purple-800/60 px-1.5 py-0.5 rounded">
+        <span className="text-[10px] font-mono text-slate-300 bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded">
           24 Horas
         </span>
       </div>
@@ -77,7 +77,7 @@ export const Time24Input: React.FC<Time24InputProps> = ({
             max={23}
             value={pad(h)}
             onChange={(e) => update(parseInt(e.target.value, 10), m, s)}
-            className="w-11 text-center bg-slate-900 border border-slate-700 rounded-md py-1 text-sm font-bold text-white focus:outline-none focus:border-purple-500"
+            className="w-11 text-center bg-slate-900 border border-slate-700 rounded-md py-1 text-sm font-semibold text-white focus:outline-none focus:border-sky-500"
           />
           <button
             type="button"
@@ -90,7 +90,7 @@ export const Time24Input: React.FC<Time24InputProps> = ({
           <span className="text-[9px] text-slate-500 font-semibold tracking-wider">HH</span>
         </div>
 
-        <span className="text-purple-400 font-bold text-base pb-3.5">:</span>
+        <span className="text-slate-500 font-bold text-base pb-3.5">:</span>
 
         {/* Minutes */}
         <div className="flex flex-col items-center">
@@ -108,7 +108,7 @@ export const Time24Input: React.FC<Time24InputProps> = ({
             max={59}
             value={pad(m)}
             onChange={(e) => update(h, parseInt(e.target.value, 10), s)}
-            className="w-11 text-center bg-slate-900 border border-slate-700 rounded-md py-1 text-sm font-bold text-white focus:outline-none focus:border-purple-500"
+            className="w-11 text-center bg-slate-900 border border-slate-700 rounded-md py-1 text-sm font-semibold text-white focus:outline-none focus:border-sky-500"
           />
           <button
             type="button"
@@ -121,7 +121,7 @@ export const Time24Input: React.FC<Time24InputProps> = ({
           <span className="text-[9px] text-slate-500 font-semibold tracking-wider">MM</span>
         </div>
 
-        <span className="text-purple-400 font-bold text-base pb-3.5">:</span>
+        <span className="text-slate-500 font-bold text-base pb-3.5">:</span>
 
         {/* Seconds */}
         <div className="flex flex-col items-center">
@@ -139,7 +139,7 @@ export const Time24Input: React.FC<Time24InputProps> = ({
             max={59}
             value={pad(s)}
             onChange={(e) => update(h, m, parseInt(e.target.value, 10))}
-            className="w-11 text-center bg-slate-900 border border-slate-700 rounded-md py-1 text-sm font-bold text-white focus:outline-none focus:border-purple-500"
+            className="w-11 text-center bg-slate-900 border border-slate-700 rounded-md py-1 text-sm font-semibold text-white focus:outline-none focus:border-sky-500"
           />
           <button
             type="button"
@@ -159,7 +159,7 @@ export const Time24Input: React.FC<Time24InputProps> = ({
           <button
             type="button"
             onClick={onCopyPlayerTime}
-            className="w-full text-center py-1 px-2 rounded-lg bg-purple-950/40 hover:bg-purple-900/60 border border-purple-800/60 text-purple-300 font-semibold transition"
+            className="w-full text-center py-1 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-medium transition"
           >
             🎯 Usar hora del reproductor
           </button>
@@ -190,7 +190,7 @@ export const Time24Input: React.FC<Time24InputProps> = ({
                 key={p.label}
                 type="button"
                 onClick={() => onSetFromStart(p.sec)}
-                className="flex-1 py-0.5 px-1 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-800/50 rounded text-purple-300 hover:text-white font-bold text-center transition"
+                className="flex-1 py-0.5 px-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-300 hover:text-white font-medium text-center transition"
               >
                 {p.label}
               </button>

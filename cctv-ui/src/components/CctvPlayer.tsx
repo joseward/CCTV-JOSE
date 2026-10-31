@@ -348,10 +348,10 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
     <div 
       className={`group relative flex flex-col bg-slate-950 border transition-all duration-200 overflow-hidden select-none cursor-pointer ${
         isMaximized 
-          ? 'w-full h-full border-blue-500/80 shadow-2xl z-20 rounded-lg' 
+          ? 'w-full h-full border-sky-500/70 shadow-xl z-20 rounded-lg' 
           : isSelected 
-          ? 'border-blue-500 ring-2 ring-blue-500/40 rounded-md shadow-lg' 
-          : 'border-slate-800 hover:border-slate-600 rounded-md shadow-md'
+          ? 'border-sky-500/80 ring-1 ring-sky-500/30 rounded-md shadow-md' 
+          : 'border-slate-800/80 hover:border-slate-700 rounded-md shadow-sm'
       }`}
       onClick={onSelectSlot}
       onDoubleClick={onToggleMaximize}
@@ -360,12 +360,12 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
       <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-3 py-1.5 bg-gradient-to-b from-black/85 via-black/45 to-transparent backdrop-blur-[2px] opacity-90 group-hover:opacity-100 transition-opacity pointer-events-none">
         <div className="flex items-center space-x-2 truncate">
           <span 
-            className={`w-2.5 h-2.5 rounded-full flex-shrink-0 animate-pulse ${
+            className={`w-2 h-2 rounded-full flex-shrink-0 ${
               status === 'connected' 
-                ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' 
+                ? 'bg-emerald-500' 
                 : status === 'connecting' 
-                ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]' 
-                : 'bg-red-500 shadow-[0_0_8px_#ef4444]'
+                ? 'bg-amber-400 animate-pulse' 
+                : 'bg-rose-500'
             }`} 
           />
           <span className="text-xs font-semibold text-slate-100 tracking-wider truncate">
@@ -383,18 +383,16 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
               e.stopPropagation();
               handleToggleQuality();
             }}
-            className={`pointer-events-auto cursor-pointer text-[9px] font-mono font-bold px-2 py-0.5 rounded tracking-wide transition flex items-center space-x-1 shadow-sm ${
-              activeStreamType === 'main'
-                ? 'bg-emerald-950/90 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/70 shadow-[0_0_6px_rgba(16,185,129,0.3)]'
-                : 'bg-blue-950/90 hover:bg-blue-900 text-blue-300 border border-blue-500/70'
-            }`}
+            className="pointer-events-auto cursor-pointer text-[9px] font-mono font-medium px-2 py-0.5 rounded tracking-wide transition flex items-center space-x-1 bg-slate-900/90 hover:bg-slate-800 text-slate-300 border border-slate-700/80 shadow-sm"
             title={`Calidad actual: ${activeStreamType.toUpperCase()}. Haz clic para alternar entre HD (Principal) y SD (Fluido)`}
           >
-            <span>{activeStreamType === 'main' ? 'HD' : 'SD'}</span>
+            <span className={activeStreamType === 'main' ? 'text-sky-300 font-bold' : 'text-slate-400'}>
+              {activeStreamType === 'main' ? 'HD' : 'SD'}
+            </span>
             <span className="opacity-75 text-[8px]">{activeStreamType === 'main' ? 'Principal' : 'Fluido'}</span>
           </button>
 
-          <span className="text-[9px] font-mono text-cyan-400 bg-cyan-950/70 border border-cyan-800/50 px-1.5 py-0.5 rounded hidden md:inline">
+          <span className="text-[9px] font-mono text-slate-400 bg-slate-900/80 border border-slate-800 px-1.5 py-0.5 rounded hidden md:inline">
             D3D11 HW
           </span>
 
@@ -426,8 +424,8 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
             <div className="relative z-10 flex flex-col items-center max-w-xs text-center space-y-3">
               {status === 'connecting' && (
                 <>
-                  <div className="w-8 h-8 border-2 border-slate-600 border-t-blue-500 rounded-full animate-spin" />
-                  <p className="text-xs font-mono text-blue-400 font-semibold tracking-wide">
+                  <div className="w-7 h-7 border-2 border-slate-700 border-t-sky-400 rounded-full animate-spin" />
+                  <p className="text-xs font-mono text-slate-300 font-medium tracking-wide">
                     Sincronizando flujo RTSP...
                   </p>
                   <p className="text-[10px] font-mono text-slate-500 truncate max-w-[240px]">
@@ -439,22 +437,22 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
               {status === 'reconnecting' && (
                 <>
                   <div className="relative">
-                    <RefreshCw className="w-8 h-8 text-amber-400 animate-spin" />
+                    <RefreshCw className="w-7 h-7 text-amber-400/90 animate-spin" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-amber-400 tracking-wider font-mono">
+                    <h4 className="text-xs font-semibold text-amber-300 tracking-wider font-mono">
                       SEÑAL PERDIDA O RUTA INVÁLIDA
                     </h4>
                     <p className="text-[11px] text-slate-400 mt-1">
-                      Intento <span className="text-white font-mono font-bold">#{retryAttempt}</span> (Backoff exponencial)
+                      Intento <span className="text-slate-200 font-mono font-medium">#{retryAttempt}</span> (Backoff exponencial)
                     </p>
-                    <p className="text-xs font-mono text-amber-300 font-bold mt-1">
-                      Reintentando en: {countdownSec}s
+                    <p className="text-xs font-mono text-slate-400 mt-1">
+                      Reintentando en: <span className="text-slate-200 font-bold">{countdownSec}s</span>
                     </p>
                   </div>
                   <button
                     onClick={handleManualReconnect}
-                    className="mt-2 px-3 py-1 bg-amber-600 hover:bg-amber-500 text-slate-950 text-xs font-bold rounded shadow transition flex items-center space-x-1.5"
+                    className="mt-2 px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium rounded transition flex items-center space-x-1.5 shadow-sm"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                     <span>Reintentar Ahora</span>
@@ -464,8 +462,8 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
 
               {status === 'failed' && (
                 <>
-                  <AlertTriangle className="w-8 h-8 text-red-500" />
-                  <p className="text-xs font-bold text-red-400 font-mono">
+                  <AlertTriangle className="w-7 h-7 text-rose-400" />
+                  <p className="text-xs font-semibold text-rose-300 font-mono">
                     ERROR AL CONECTAR AL FLUJO
                   </p>
                   <p className="text-[10px] text-slate-400">
@@ -473,7 +471,7 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
                   </p>
                   <button
                     onClick={handleManualReconnect}
-                    className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-xs font-semibold rounded shadow transition"
+                    className="px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium rounded shadow-sm transition"
                   >
                     Reconectar
                   </button>
@@ -485,8 +483,8 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
 
         {/* Snapshot Notification Pill */}
         {snapshotToast && (
-          <div className="absolute top-10 left-1/2 -translate-x-1/2 z-30 px-3 py-1 bg-emerald-600/90 text-white text-xs font-semibold rounded-full shadow-lg backdrop-blur flex items-center space-x-1 animate-bounce">
-            <SnapshotIcon className="w-3.5 h-3.5" />
+          <div className="absolute top-10 left-1/2 -translate-x-1/2 z-30 px-3 py-1 bg-slate-800 border border-slate-700 text-slate-100 text-xs font-medium rounded-full shadow-lg backdrop-blur flex items-center space-x-1">
+            <SnapshotIcon className="w-3.5 h-3.5 text-sky-400" />
             <span>{snapshotToast}</span>
           </div>
         )}
@@ -495,11 +493,11 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
       {/* Bottom Control Bar Overlay */}
       <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center justify-between px-3 py-1.5 bg-gradient-to-t from-black/85 via-black/40 to-transparent backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity">
         <div className="flex items-center space-x-2 text-[10px] font-mono text-slate-400">
-          <span className="text-slate-300 font-bold">{index + 1}</span>
+          <span className="text-slate-300 font-semibold">{index + 1}</span>
           <span>•</span>
           <span>{liveStats.resolution || (activeStreamType === 'main' ? '1080p' : '360p')}</span>
           <span>•</span>
-          <span className="text-emerald-400 font-bold">{liveStats.fps || 25} FPS</span>
+          <span className="text-slate-300 font-medium">{liveStats.fps || 25} FPS</span>
         </div>
 
         <div className="flex items-center space-x-1 text-slate-300">
@@ -513,15 +511,15 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
 
           <button
             onClick={() => setIsMuted(!isMuted)}
-            className={`p-1 rounded transition ${isMuted ? 'text-slate-400 hover:text-white' : 'text-emerald-400 bg-emerald-950/60'}`}
+            className={`p-1 rounded transition ${isMuted ? 'text-slate-400 hover:text-white' : 'text-slate-200 bg-slate-800'}`}
             title={isMuted ? 'Activar Audio' : 'Silenciar Audio'}
           >
-            {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+            {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-sky-400" />}
           </button>
 
           <button
             onClick={handleCaptureSnapshot}
-            className="p-1 hover:text-emerald-400 hover:bg-slate-800/80 rounded transition"
+            className="p-1 hover:text-white hover:bg-slate-800/80 rounded transition"
             title="Capturar Foto Instantánea"
           >
             <SnapshotIcon className="w-3.5 h-3.5" />
@@ -529,7 +527,7 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
 
           <button
             onClick={handleManualReconnect}
-            className="p-1 hover:text-amber-400 hover:bg-slate-800/80 rounded transition"
+            className="p-1 hover:text-white hover:bg-slate-800/80 rounded transition"
             title="Refrescar Flujo RTSP"
           >
             <RefreshCw className="w-3.5 h-3.5" />
@@ -538,7 +536,7 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
           {onOpenPlayback && (
             <button
               onClick={onOpenPlayback}
-              className="p-1 text-purple-400 hover:text-purple-300 hover:bg-purple-950/60 rounded transition"
+              className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition"
               title="Ver Grabaciones / Playback de este canal"
             >
               <Film className="w-3.5 h-3.5" />
@@ -547,7 +545,7 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
 
           <button
             onClick={onToggleMaximize}
-            className="p-1 hover:text-blue-400 hover:bg-slate-800/80 rounded transition"
+            className="p-1 hover:text-white hover:bg-slate-800/80 rounded transition"
             title={isMaximized ? 'Restaurar Cuadrícula' : 'Maximizar Canal (Cambia a Main Stream)'}
           >
             {isMaximized ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}

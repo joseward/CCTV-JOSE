@@ -229,7 +229,7 @@ export const DvrMaintenanceModal: React.FC<DvrMaintenanceModalProps> = ({
               {/* CARD 3: INFORMACIÓN DEL MODELO Y ESTABILIDAD */}
               <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/60 space-y-2.5">
                 <div className="flex items-center space-x-2 text-slate-200 font-bold text-xs">
-                  <Cpu className="w-4 h-4 text-purple-400" />
+                  <Cpu className="w-4 h-4 text-sky-400" />
                   <span>Información del Hardware y Firmware</span>
                 </div>
 
