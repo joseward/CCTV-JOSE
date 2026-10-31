@@ -21,7 +21,8 @@ import {
   FolderPlus,
   FolderInput,
   Check,
-  X
+  X,
+  AlertTriangle
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -109,6 +110,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [movingDvrName, setMovingDvrName] = useState<string | null>(null);
   const [inlineNewGroupForMove, setInlineNewGroupForMove] = useState<string>('');
   const [isCreatingGroupInMove, setIsCreatingGroupInMove] = useState<boolean>(false);
+
+  // Confirmation dialog for folder actions ("Ver Grupo" / "Eliminar Grupo")
+  const [confirmFolderAction, setConfirmFolderAction] = useState<{
+    type: 'play' | 'delete';
+    folderName: string;
+    totalChannels: number;
+    dvrCount: number;
+  } | null>(null);
 
   // Sync custom folders changes to localStorage
   const saveCustomFolders = (folders: string[]) => {
@@ -310,7 +319,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside 
       className={`h-full bg-slate-950/95 border-r border-slate-800/80 flex flex-col transition-all duration-300 z-20 select-none ${
-        isOpen ? 'w-80' : 'w-0 border-r-0'
+        isOpen ? 'w-[350px]' : 'w-0 border-r-0'
       } overflow-hidden`}
     >
       {/* Header */}
@@ -454,11 +463,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </button>
                       </div>
                     ) : (
-                      <div className="truncate flex-1">
-                        <span className="text-xs font-semibold text-slate-200 truncate block" title={section.folderName}>
+                      <div className="min-w-0 flex-1 mr-2">
+                        <span className="text-xs font-semibold text-slate-100 truncate block leading-tight" title={section.folderName}>
                           {section.folderName}
                         </span>
-                        <span className="text-[10px] text-slate-400 font-mono block">
+                        <span className="text-[10px] text-slate-400 font-mono block truncate mt-0.5">
                           {section.dvrs.length} {section.dvrs.length === 1 ? 'grabador' : 'grabadores'} • {section.totalChannels} can.
                         </span>
                       </div>
@@ -481,25 +490,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       </button>
                     )}
 
-                    {/* Delete Empty Folder */}
-                    {section.dvrs.length === 0 && section.folderName !== DEFAULT_FOLDER && (
+                    {/* Delete Folder */}
+                    {section.folderName !== DEFAULT_FOLDER && (
                       <button
-                        onClick={() => handleDeleteEmptyFolder(section.folderName)}
+                        onClick={() => {
+                          if (section.dvrs.length > 0) {
+                            setConfirmFolderAction({
+                              type: 'delete',
+                              folderName: section.folderName,
+                              dvrCount: section.dvrs.length,
+                              totalChannels: section.totalChannels
+                            });
+                          } else {
+                            handleDeleteEmptyFolder(section.folderName);
+                          }
+                        }}
                         className="p-1 text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded transition"
-                        title="Eliminar carpeta vacía"
+                        title={section.dvrs.length > 0 ? `Eliminar grupo (${section.dvrs.length} grabadores volverán a Grupo predefinido)` : "Eliminar carpeta vacía"}
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
                     )}
 
-                    {/* Play Entire Folder in Grid */}
+                    {/* Play Entire Folder in Grid (With confirmation protection against misclicks) */}
                     {onPlayAllFolderCameras && section.totalChannels > 0 && (
                       <button
-                        onClick={() => onPlayAllFolderCameras(section.folderName)}
+                        onClick={() => {
+                          setConfirmFolderAction({
+                            type: 'play',
+                            folderName: section.folderName,
+                            dvrCount: section.dvrs.length,
+                            totalChannels: section.totalChannels
+                          });
+                        }}
                         className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 rounded text-[10px] font-medium transition flex items-center space-x-1"
                         title="Transmitir cámaras de todo este grupo"
                       >
-                        <Tv className="w-2.5 h-2.5" />
+                        <Tv className="w-2.5 h-2.5 text-sky-400" />
                         <span>Ver Grupo</span>
                       </button>
                     )}
@@ -530,7 +557,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               className="px-2.5 py-2 bg-slate-900/70 border-b border-slate-800/50 flex items-center justify-between cursor-pointer hover:bg-slate-800/50 transition"
                               onClick={() => toggleDvr(dvr.groupName)}
                             >
-                              <div className="flex items-center space-x-2 truncate mr-1">
+                              <div className="flex items-center space-x-2 min-w-0 flex-1 mr-2">
                                 <button className="text-slate-400 hover:text-white flex-shrink-0">
                                   {isDvrExpanded ? (
                                     <ChevronDown className="w-3.5 h-3.5" />
@@ -539,16 +566,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                   )}
                                 </button>
                                 <Server className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                                <div className="truncate">
-                                  <div className="flex items-center space-x-1.5">
-                                    <span className="text-xs font-semibold text-slate-200 truncate" title={dvr.groupName}>
-                                      {dvr.groupName}
-                                    </span>
-                                    <span className="text-[9px] font-mono px-1 rounded bg-slate-800 text-slate-400 border border-slate-700/60 uppercase">
-                                      {dvr.vendorPreset}
-                                    </span>
-                                  </div>
-                                  <span className="text-[10px] text-slate-400 font-mono block">
+                                <div className="min-w-0 flex-1">
+                                  <span 
+                                    className="text-xs font-semibold text-slate-100 truncate block leading-tight" 
+                                    title={dvr.groupName}
+                                  >
+                                    {dvr.groupName}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-mono block truncate mt-0.5">
                                     {dvr.ip} • {dvr.cameras.length} canales
                                   </span>
                                 </div>
@@ -608,10 +633,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                       ? 'bg-slate-800 text-emerald-400 border-emerald-800/60 hover:bg-slate-700' 
                                       : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
                                   }`}
-                                  title="Transmitir todas las cámaras de este grabador"
+                                  title={`Transmitir todas las cámaras de ${dvr.groupName} (${dvr.cameras.length} canales)`}
                                 >
-                                  <Tv className="w-3 h-3" />
-                                  <span>{allActive ? `Activo (${dvr.cameras.length})` : `Ver Todo (${dvr.cameras.length})`}</span>
+                                  <Tv className="w-3 h-3 text-sky-400" />
+                                  <span>{allActive ? 'Activo' : `Ver (${dvr.cameras.length})`}</span>
                                 </button>
                               </div>
                             </div>
@@ -817,6 +842,111 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         )}
       </div>
+
+      {/* Confirmation Modal for Folder Actions (Ver Grupo / Eliminar Grupo) */}
+      {confirmFolderAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 max-w-sm w-full shadow-2xl space-y-4">
+            {confirmFolderAction.type === 'play' ? (
+              <>
+                <div className="flex items-center space-x-3 text-sky-400">
+                  <div className="p-2 bg-slate-800 border border-slate-700 rounded-xl">
+                    <Tv className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-100">¿Transmitir grupo completo?</h4>
+                    <p className="text-[11px] text-slate-400 font-medium">Confirmación de acción masiva</p>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-950/80 border border-slate-800/80 rounded-xl space-y-2 text-xs text-slate-300">
+                  <p>
+                    El grupo <strong className="text-white">"{confirmFolderAction.folderName}"</strong> contiene{' '}
+                    <strong className="text-sky-300 font-semibold">{confirmFolderAction.dvrCount} grabador(es)</strong> con un total de{' '}
+                    <strong className="text-sky-300 font-semibold">{confirmFolderAction.totalChannels} canales</strong>.
+                  </p>
+                  <div className="p-2 bg-amber-950/30 border border-amber-800/40 rounded-lg text-[11px] text-amber-300 flex items-start space-x-2">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-400 mt-0.5" />
+                    <span>
+                      Al continuar se cargarán sus cámaras en el mosaico y se reemplazarán las que están transmitiendo actualmente en pantalla.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end space-x-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmFolderAction(null)}
+                    className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onPlayAllFolderCameras) {
+                        onPlayAllFolderCameras(confirmFolderAction.folderName);
+                      }
+                      setConfirmFolderAction(null);
+                    }}
+                    className="px-4 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-semibold shadow transition flex items-center space-x-1.5"
+                  >
+                    <Tv className="w-3.5 h-3.5" />
+                    <span>Sí, Transmitir Grupo</span>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center space-x-3 text-amber-400">
+                  <div className="p-2 bg-slate-800 border border-slate-700 rounded-xl">
+                    <Trash2 className="w-5 h-5 text-red-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-100">¿Eliminar este grupo?</h4>
+                    <p className="text-[11px] text-slate-400 font-medium">Reubicación de equipos</p>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-950/80 border border-slate-800/80 rounded-xl space-y-2 text-xs text-slate-300">
+                  <p>
+                    El grupo <strong className="text-white">"{confirmFolderAction.folderName}"</strong> contiene{' '}
+                    <strong className="text-white font-semibold">{confirmFolderAction.dvrCount} grabador(es)</strong>.
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Los grabadores <strong className="text-slate-200">no se eliminarán</strong>; se moverán automáticamente al grupo <strong className="text-sky-300">"{DEFAULT_FOLDER}"</strong>.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end space-x-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmFolderAction(null)}
+                    className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const section = folderSections.find((s) => s.folderName === confirmFolderAction.folderName);
+                      if (section && onMoveDvrToFolder) {
+                        section.dvrs.forEach((d) => onMoveDvrToFolder(d.groupName, DEFAULT_FOLDER));
+                      }
+                      handleDeleteEmptyFolder(confirmFolderAction.folderName);
+                      setConfirmFolderAction(null);
+                    }}
+                    className="px-4 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-semibold shadow transition flex items-center space-x-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Eliminar Grupo</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </aside>
   );
 };

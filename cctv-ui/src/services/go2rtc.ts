@@ -116,32 +116,32 @@ export function buildPresetRtspUrls(
     case 'hikvision':
       // Hikvision standard: 101/201 (main), 102/202 (sub)
       return {
-        main: `rtsp://${auth}${host}/Streaming/Channels/${channel}01`,
-        sub: `rtsp://${auth}${host}/Streaming/Channels/${channel}02`,
+        main: `rtsp://${auth}${host}/Streaming/Channels/${channel}01#transport=tcp`,
+        sub: `rtsp://${auth}${host}/Streaming/Channels/${channel}02#transport=tcp`,
       };
     case 'dahua':
       // Dahua / Amcrest standard: subtype=0 (main), subtype=1 (sub)
       return {
-        main: `rtsp://${auth}${host}/cam/realmonitor?channel=${channel}&subtype=0`,
-        sub: `rtsp://${auth}${host}/cam/realmonitor?channel=${channel}&subtype=1`,
+        main: `rtsp://${auth}${host}/cam/realmonitor?channel=${channel}&subtype=0#transport=tcp`,
+        sub: `rtsp://${auth}${host}/cam/realmonitor?channel=${channel}&subtype=1#transport=tcp`,
       };
     case 'uniview':
       // Uniview standard: s0 (main), s1 (sub)
       return {
-        main: `rtsp://${auth}${host}/unicast/c${channel}/s0/live`,
-        sub: `rtsp://${auth}${host}/unicast/c${channel}/s1/live`,
+        main: `rtsp://${auth}${host}/unicast/c${channel}/s0/live#transport=tcp`,
+        sub: `rtsp://${auth}${host}/unicast/c${channel}/s1/live#transport=tcp`,
       };
     case 'juan':
       // Juan / EseeCloud / Jovision standard: ch0_0.264 (main), ch0_1.264 (sub)
       const chIdx = channel - 1;
       return {
-        main: `rtsp://${auth}${host}/ch${chIdx}_0.264`,
-        sub: `rtsp://${auth}${host}/ch${chIdx}_1.264`,
+        main: `rtsp://${auth}${host}/ch${chIdx}_0.264#transport=tcp`,
+        sub: `rtsp://${auth}${host}/ch${chIdx}_1.264#transport=tcp`,
       };
     default:
       return {
-        main: `rtsp://${auth}${host}/live/ch${channel}`,
-        sub: `rtsp://${auth}${host}/live/ch${channel}_sub`,
+        main: `rtsp://${auth}${host}/live/ch${channel}#transport=tcp`,
+        sub: `rtsp://${auth}${host}/live/ch${channel}_sub#transport=tcp`,
       };
   }
 }
@@ -271,8 +271,18 @@ async function probeStreamRealVideo(streamUrl: string, timeoutMs: number = 3500)
     clearTimeout(timer);
 
     if (res.ok) {
+      // Must read from the stream to ensure actual video payload arrives
+      const reader = res.body?.getReader();
+      if (reader) {
+        const { value, done } = await reader.read();
+        reader.cancel().catch(() => {});
+        deleteStream(probeName).catch(() => {});
+        if (!done && value && value.length > 0) {
+          return { ok: true };
+        }
+      }
       deleteStream(probeName).catch(() => {});
-      return { ok: true };
+      return { ok: false, errorText: 'El equipo no transmitió fotogramas de video' };
     }
 
     const text = await res.text().catch(() => '');
