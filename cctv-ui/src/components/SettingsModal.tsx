@@ -1244,7 +1244,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div>
                   <h3 className="text-base font-bold text-white">Actualización del Sistema</h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Versión instalada: <strong className="text-emerald-400 font-mono text-sm">{updateStatus?.currentVersion || 'v1.2.0'}</strong>
+                    Versión instalada: <strong className="text-emerald-400 font-mono text-sm">{updateStatus?.currentVersion || 'v1.2.1'}</strong>
                   </p>
                 </div>
 

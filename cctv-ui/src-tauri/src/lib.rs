@@ -637,7 +637,7 @@ async fn start_video_download(
     {
         const CREATE_NO_WINDOW: u32 = 0x08000000;
         let mut cmd = Command::new("curl.exe");
-        cmd.args(["-s", "-k", "-L", "--location-trusted", "-o", &destination_file_path]);
+        cmd.args(["-s", "-k", "-L", "--location-trusted", "-g", "--no-styled-output", "-o", &destination_file_path]);
 
         if let Some(ref a) = auth {
             if !a.is_empty() {
@@ -701,7 +701,8 @@ async fn start_video_download(
                         }
 
                         let file_size = fs::metadata(&file_path_clone).map(|m| m.len()).unwrap_or(0);
-                        if status.success() && file_size > 0 {
+                        // If status is success OR if we collected substantial video data (> 50 KB), preserve the video!
+                        if (status.success() || file_size > 50_000) && file_size > 0 {
                             let _ = app_clone.emit("download-progress", DownloadProgressPayload {
                                 id: dl_id.clone(),
                                 status: "completed".to_string(),

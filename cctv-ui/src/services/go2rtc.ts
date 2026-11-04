@@ -183,7 +183,7 @@ export function buildPresetPlaybackRtspUrl(
       // Dahua format: /cam/playback?channel=1&starttime=YYYY_MM_DD_HH_MM_SS&endtime=YYYY_MM_DD_HH_MM_SS
       const dStart = `${sY}_${sM}_${sD}_${sH}_${sm}_${ss}`;
       const dEnd = `${eY}_${eM}_${eD}_${eH}_${em}_${es}`;
-      return `rtsp://${auth}${host}/cam/playback?channel=${channel}&starttime=${dStart}&endtime=${dEnd}`;
+      return `rtsp://${auth}${host}/cam/playback?channel=${channel}&starttime=${dStart}&endtime=${dEnd}#transport=tcp`;
 
     case 'hikvision':
       // Hikvision standard UTC tracks format: YYYYMMDDTHHMMSSZ (requires true UTC Zulu time)
@@ -204,18 +204,18 @@ export function buildPresetPlaybackRtspUrl(
 
       const hStart = `${uY}${uM}${uD}T${uH}${um}${us}Z`;
       const hEnd = `${ueY}${ueM}${ueD}T${ueH}${uem}${ues}Z`;
-      return `rtsp://${auth}${host}/Streaming/tracks/${hTrack}?starttime=${hStart}&endtime=${hEnd}`;
+      return `rtsp://${auth}${host}/Streaming/tracks/${hTrack}?starttime=${hStart}&endtime=${hEnd}#transport=tcp`;
 
     case 'uniview':
-      return `rtsp://${auth}${host}/unicast/c${channel}/s0/playback?starttime=${sY}${sM}${sD}T${sH}${sm}${ss}Z&endtime=${eY}${eM}${eD}T${eH}${em}${es}Z`;
+      return `rtsp://${auth}${host}/unicast/c${channel}/s0/playback?starttime=${sY}${sM}${sD}T${sH}${sm}${ss}Z&endtime=${eY}${eM}${eD}T${eH}${em}${es}Z#transport=tcp`;
 
     case 'juan':
       // Juan / EseeCloud playback format (channel 0-indexed)
       const jIdx = channel - 1;
-      return `rtsp://${auth}${host}/playback?channel=${jIdx}&starttime=${sY}${sM}${sD}T${sH}${sm}${ss}Z&endtime=${eY}${eM}${eD}T${eH}${em}${es}Z`;
+      return `rtsp://${auth}${host}/playback?channel=${jIdx}&starttime=${sY}${sM}${sD}T${sH}${sm}${ss}Z&endtime=${eY}${eM}${eD}T${eH}${em}${es}Z#transport=tcp`;
 
     default:
-      return `rtsp://${auth}${host}/cam/playback?channel=${channel}&starttime=${sY}_${sM}_${sD}_${sH}_${sm}_${ss}&endtime=${eY}_${eM}_${eD}_${eH}_${em}_${es}`;
+      return `rtsp://${auth}${host}/cam/playback?channel=${channel}&starttime=${sY}_${sM}_${sD}_${sH}_${sm}_${ss}&endtime=${eY}_${eM}_${eD}_${eH}_${em}_${es}#transport=tcp`;
   }
 }
 

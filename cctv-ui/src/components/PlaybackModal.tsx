@@ -37,7 +37,8 @@ import {
   FileVideo,
   Globe,
   ExternalLink,
-  Zap
+  Zap,
+  Info
 } from 'lucide-react';
 
 if (typeof window !== 'undefined' && !customElements.get('video-rtc')) {
@@ -388,9 +389,10 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
     setDownloadDate(selectedDate);
     const timeStr = formatSecondsToTime(currentSecondsOfDay);
     setDownloadStartTime(timeStr);
-    // Default end time: +15 minutes
-    const endSec = Math.min(86399, currentSecondsOfDay + 900);
+    // Default end time: +5 minutes (optimum for reliable real-time DVR extraction)
+    const endSec = Math.min(86399, currentSecondsOfDay + 300);
     setDownloadEndTime(formatSecondsToTime(endSec));
+    setDownloadDurationSeconds(300);
     setIsDownloadModalOpen(true);
   };
 
@@ -1203,13 +1205,13 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                       onClick={() => {
                         const cur = formatSecondsToTime(currentSecondsOfDay);
                         setDownloadStartTime(cur);
-                        const endSec = Math.min(86399, currentSecondsOfDay + 900);
+                        const endSec = Math.min(86399, currentSecondsOfDay + 300);
                         setDownloadEndTime(formatSecondsToTime(endSec));
                       }}
                       className="text-sky-400 hover:text-sky-300 font-medium underline flex items-center space-x-1"
                     >
                       <Clock className="w-3.5 h-3.5" />
-                      <span>Copiar hora del reproductor a Inicio (+15m a Fin)</span>
+                      <span>Copiar hora del reproductor a Inicio (+5m a Fin)</span>
                     </button>
 
                     {(() => {
@@ -1335,10 +1337,20 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                 </div>
               </div>
 
-              {targetDownloadCam?.vendorPreset?.toLowerCase() === 'hikvision' && (
+              {targetDownloadCam?.vendorPreset?.toLowerCase() === 'hikvision' ? (
                 <div className="flex items-center space-x-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-300 text-xs">
                   <Zap className="w-4 h-4 text-amber-400 shrink-0" />
                   <span>Acelerador de red ISAPI activo (descargas ultrarrápidas a velocidad de red local ~10-25 MB/s).</span>
+                </div>
+              ) : (
+                <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 text-xs">
+                  <Info className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <span className="font-semibold text-slate-200">Nota de velocidad y duración:</span>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Los grabadores DVR transmiten su video grabado a velocidad de reproducción (aprox. 0.3 a 0.8 MB/s según la calidad). Para una descarga rápida y evitar cortes de red, se recomienda descargar fragmentos específicos de 1 a 15 minutos en lugar de horas completas.
+                    </p>
+                  </div>
                 </div>
               )}
 
