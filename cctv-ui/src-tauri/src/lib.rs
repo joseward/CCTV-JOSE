@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::io::Write;
 use std::collections::{BTreeSet, HashMap};
 use tauri_plugin_updater::UpdaterExt;
@@ -901,34 +901,6 @@ struct NetTime {
 }
 
 #[cfg(windows)]
-struct DahuaSdkContext {
-    finished: AtomicBool,
-    total_bytes: AtomicU64,
-    downloaded_bytes: AtomicU64,
-}
-
-#[cfg(windows)]
-unsafe extern "system" fn dahua_download_cb(
-    _handle: i64,
-    total_size: u32,
-    download_size: u32,
-    userdata: usize,
-) {
-    if userdata != 0 {
-        let ctx = unsafe { &*(userdata as *const DahuaSdkContext) };
-        if total_size > 0 {
-            ctx.total_bytes.store(total_size as u64, Ordering::Relaxed);
-        }
-        if download_size != 0xFFFFFFFF {
-            ctx.downloaded_bytes.store(download_size as u64, Ordering::Relaxed);
-        }
-        if download_size == 0xFFFFFFFF || (download_size == total_size && total_size > 0) {
-            ctx.finished.store(true, Ordering::SeqCst);
-        }
-    }
-}
-
-#[cfg(windows)]
 fn parse_iso_to_net_time(iso: &str) -> Option<NetTime> {
     let clean = iso.replace('T', " ").replace('Z', "");
     let mut parts = clean.split_whitespace();
@@ -1205,7 +1177,7 @@ async fn start_dahua_direct_download(
             let fn_init = unsafe {
                 let p = GetProcAddress(h_mod, b"CLIENT_Init\0".as_ptr());
                 if p.is_null() { return Err("Función CLIENT_Init no encontrada".to_string()); }
-                std::mem::transmute::<*mut std::ffi::c_void, unsafe extern "system" fn(usize, usize) -> bool>(p)
+                std::mem::transmute::<*mut std::ffi::c_void, unsafe extern "system" fn(usize, usize) -> i32>(p)
             };
             let fn_login = unsafe {
                 let p = GetProcAddress(h_mod, b"CLIENT_LoginWithHighLevelSecurity\0".as_ptr());
@@ -1215,17 +1187,22 @@ async fn start_dahua_direct_download(
             let fn_download = unsafe {
                 let p = GetProcAddress(h_mod, b"CLIENT_DownloadByTimeEx\0".as_ptr());
                 if p.is_null() { return Err("Función CLIENT_DownloadByTimeEx no encontrada".to_string()); }
-                std::mem::transmute::<*mut std::ffi::c_void, unsafe extern "system" fn(i64, i32, i32, *const NetTime, *const NetTime, *const i8, Option<unsafe extern "system" fn(i64, u32, u32, usize)>, usize, usize, usize, usize) -> i64>(p)
+                std::mem::transmute::<*mut std::ffi::c_void, unsafe extern "system" fn(i64, i32, i32, *const NetTime, *const NetTime, *const i8, usize, usize, usize, usize, usize) -> i64>(p)
+            };
+            let fn_get_pos = unsafe {
+                let p = GetProcAddress(h_mod, b"CLIENT_GetDownloadPos\0".as_ptr());
+                if p.is_null() { return Err("Función CLIENT_GetDownloadPos no encontrada".to_string()); }
+                std::mem::transmute::<*mut std::ffi::c_void, unsafe extern "system" fn(i64, *mut i32, *mut i32) -> i32>(p)
             };
             let fn_stop = unsafe {
                 let p = GetProcAddress(h_mod, b"CLIENT_StopDownload\0".as_ptr());
                 if p.is_null() { return Err("Función CLIENT_StopDownload no encontrada".to_string()); }
-                std::mem::transmute::<*mut std::ffi::c_void, unsafe extern "system" fn(i64) -> bool>(p)
+                std::mem::transmute::<*mut std::ffi::c_void, unsafe extern "system" fn(i64) -> i32>(p)
             };
             let fn_logout = unsafe {
                 let p = GetProcAddress(h_mod, b"CLIENT_Logout\0".as_ptr());
                 if p.is_null() { return Err("Función CLIENT_Logout no encontrada".to_string()); }
-                std::mem::transmute::<*mut std::ffi::c_void, unsafe extern "system" fn(i64) -> bool>(p)
+                std::mem::transmute::<*mut std::ffi::c_void, unsafe extern "system" fn(i64) -> i32>(p)
             };
 
             unsafe { fn_init(0, 0); }
@@ -1271,13 +1248,6 @@ async fn start_dahua_direct_download(
             let path_cstr = std::ffi::CString::new(file_path_clone.clone())
                 .map_err(|e| e.to_string())?;
 
-            let ctx = Arc::new(DahuaSdkContext {
-                finished: AtomicBool::new(false),
-                total_bytes: AtomicU64::new(0),
-                downloaded_bytes: AtomicU64::new(0),
-            });
-            let ctx_ptr = Arc::as_ptr(&ctx) as usize;
-
             let cancel_flag = Arc::new(AtomicBool::new(false));
             {
                 let mut map = state_dahua.lock().unwrap();
@@ -1293,8 +1263,8 @@ async fn start_dahua_direct_download(
                     &tm_start,
                     &tm_end,
                     path_cstr.as_ptr(),
-                    Some(dahua_download_cb),
-                    ctx_ptr,
+                    0,
+                    0,
                     0,
                     0,
                     0,
@@ -1341,6 +1311,10 @@ async fn start_dahua_direct_download(
                     return Err("Descarga cancelada.".to_string());
                 }
 
+                let mut total_size: i32 = 0;
+                let mut download_size: i32 = 0;
+                let _ = unsafe { fn_get_pos(dl_handle, &mut total_size, &mut download_size) };
+
                 let current_bytes = fs::metadata(&file_path_clone).map(|m| m.len()).unwrap_or(0);
                 let now = std::time::Instant::now();
                 let dt = (now - last_time).as_secs_f64();
@@ -1352,22 +1326,21 @@ async fn start_dahua_direct_download(
                 last_bytes = current_bytes;
                 last_time = now;
 
-                let is_finished = ctx.finished.load(Ordering::SeqCst);
-                let total = ctx.total_bytes.load(Ordering::Relaxed);
-
                 if current_bytes > 0 && speed_bps < 1000.0 {
                     no_growth_ticks += 1;
                 } else {
                     no_growth_ticks = 0;
                 }
 
-                let percentage = if total > 0 {
-                    ((current_bytes as f64 / total as f64) * 100.0).min(99.0) as u32
+                let percentage = if total_size > 0 && download_size > 0 {
+                    ((download_size as f64 / total_size as f64) * 100.0).min(99.0) as u32
                 } else if estimated_bytes > 0 {
                     ((current_bytes as f64 / estimated_bytes as f64) * 100.0).min(99.0) as u32
                 } else {
                     50
                 };
+
+                let is_finished = download_size == -1 || (total_size > 0 && download_size >= total_size);
 
                 if is_finished || (no_growth_ticks >= 25 && current_bytes > 50_000) {
                     unsafe {
