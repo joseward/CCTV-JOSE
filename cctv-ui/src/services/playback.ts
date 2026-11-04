@@ -181,15 +181,8 @@ export async function downloadClipWithProgress(
       const uem = pad(endTime.getUTCMinutes());
       const ues = pad(endTime.getUTCSeconds());
 
-      const hStart = `${uY}${uM}${uD}T${uH}${um}${us}Z`;
-      const hEnd = `${ueY}${ueM}${ueD}T${ueH}${uem}${ues}Z`;
-      const trackChannel = camera.channel || 1;
-      const trackId = `${trackChannel}01`;
-
-      const playbackURI = `rtsp://${camera.ip}:554/Streaming/tracks/${trackId}?starttime=${hStart}&endtime=${hEnd}`;
-      const httpPort = camera.port === 554 ? 80 : (camera.port || 80);
-      const downloadUrl = `http://${camera.ip}:${httpPort}/ISAPI/ContentMgmt/download?playbackURI=${encodeURIComponent(playbackURI)}`;
-      const auth = camera.username ? `${camera.username}:${camera.password || ''}` : undefined;
+      const startIso = `${uY}-${uM}-${uD}T${uH}:${um}:${us}Z`;
+      const endIso = `${ueY}-${ueM}-${ueD}T${ueH}:${uem}:${ues}Z`;
 
       const { invoke } = await import('@tauri-apps/api/core');
       const { listen } = await import('@tauri-apps/api/event');
@@ -220,23 +213,100 @@ export async function downloadClipWithProgress(
         });
       }
 
-      const savedPath = await invoke<string>('start_video_download', {
+      const savedPath = await invoke<string>('start_hikvision_direct_download', {
         downloadId,
-        url: downloadUrl,
+        ip: camera.ip,
+        port: camera.port === 554 ? 80 : (camera.port || 80),
+        user: camera.username || 'admin',
+        pass: camera.password || '',
+        channel: camera.channel || 1,
+        startTimeIso: startIso,
+        endTimeIso: endIso,
         destinationFilePath,
-        auth,
         durationSeconds,
       });
 
       if (cleanListener) cleanListener();
       return savedPath;
     } catch (err: any) {
-      console.warn('[playback] Descarga ISAPI falló, usando go2rtc stream...', err);
+      console.warn('[playback] Descarga ISAPI Turbo Hikvision falló, usando go2rtc stream...', err);
       // Fallback to go2rtc below
     }
   }
 
-  // 2. UNIVERSAL DIRECT-TO-DISK DOWNLOAD (DAHUA, JUAN, UNIVIEW, GO2RTC)
+  // 2. HIGH-SPEED NATIVE NETSDK DOWNLOAD (DAHUA DVR / NVR TCP 37777)
+  const isDahua = camera.vendorPreset?.toLowerCase() === 'dahua';
+  if (isDahua && isTauri) {
+    try {
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const sY = startTime.getFullYear();
+      const sM = pad(startTime.getMonth() + 1);
+      const sD = pad(startTime.getDate());
+      const sH = pad(startTime.getHours());
+      const sm = pad(startTime.getMinutes());
+      const ss = pad(startTime.getSeconds());
+
+      const eY = endTime.getFullYear();
+      const eM = pad(endTime.getMonth() + 1);
+      const eD = pad(endTime.getDate());
+      const eH = pad(endTime.getHours());
+      const em = pad(endTime.getMinutes());
+      const es = pad(endTime.getSeconds());
+
+      const startLocalStr = `${sY}-${sM}-${sD} ${sH}:${sm}:${ss}`;
+      const endLocalStr = `${eY}-${eM}-${eD} ${eH}:${em}:${es}`;
+
+      const { invoke } = await import('@tauri-apps/api/core');
+      const { listen } = await import('@tauri-apps/api/event');
+
+      let cleanListener: (() => void) | null = null;
+      cleanListener = await listen<any>('download-progress', (event) => {
+        if (event.payload.id === downloadId) {
+          const payload = event.payload;
+          currentProgress = {
+            id: downloadId,
+            fileName,
+            filePath: destinationFilePath,
+            status: payload.status,
+            bytesDownloaded: payload.bytes_downloaded,
+            totalBytesEstimate: estimatedBytes,
+            percentage: payload.percentage,
+            speedBps: payload.speed_bps,
+            error: payload.error,
+            isAccelerated: true,
+          };
+          onProgress(currentProgress);
+        }
+      });
+
+      if (abortSignal) {
+        abortSignal.addEventListener('abort', () => {
+          invoke('cancel_video_download', { downloadId }).catch(() => {});
+        });
+      }
+
+      const savedPath = await invoke<string>('start_dahua_direct_download', {
+        downloadId,
+        ip: camera.ip,
+        port: 37777,
+        user: camera.username || 'admin',
+        pass: camera.password || '',
+        channel: camera.channel || 1,
+        startTime: startLocalStr,
+        endTime: endLocalStr,
+        destinationFilePath,
+        durationSeconds,
+      });
+
+      if (cleanListener) cleanListener();
+      return savedPath;
+    } catch (err: any) {
+      console.warn('[playback] Descarga Directa NetSDK Dahua falló, usando go2rtc stream...', err);
+      // Fallback to go2rtc below
+    }
+  }
+
+  // 3. UNIVERSAL DIRECT-TO-DISK DOWNLOAD (JUAN, UNIVIEW, GO2RTC)
   const dlStreamName = `export_${camera.id}_${Date.now()}`;
   const rtspUrl = buildPresetPlaybackRtspUrl(
     camera.vendorPreset || 'dahua',

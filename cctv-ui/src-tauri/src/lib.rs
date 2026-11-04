@@ -2,6 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::io::Write;
 use std::collections::{BTreeSet, HashMap};
 use tauri_plugin_updater::UpdaterExt;
@@ -18,6 +19,7 @@ struct AppState {
     go2rtc_process: Mutex<Option<Child>>,
     whatsapp_process: Mutex<Option<Child>>,
     active_downloads: Arc<Mutex<HashMap<String, u32>>>,
+    active_dahua_downloads: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
 }
 
 fn get_whatsapp_gateway_dir() -> Option<PathBuf> {
@@ -85,6 +87,48 @@ fn get_go2rtc_path() -> Option<PathBuf> {
         PathBuf::from("../bin/go2rtc.exe"),
         PathBuf::from("src-tauri/bin/go2rtc.exe"),
         PathBuf::from("../src-tauri/bin/go2rtc.exe"),
+    ];
+    for p in &cwd_candidates {
+        if p.exists() {
+            if let Ok(abs) = fs::canonicalize(p) {
+                return Some(abs);
+            }
+            return Some(p.clone());
+        }
+    }
+
+    None
+}
+
+fn get_dhnetsdk_path() -> Option<PathBuf> {
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let candidate1 = exe_dir.join("bin").join("dhnetsdk.dll");
+            if candidate1.exists() {
+                return Some(candidate1);
+            }
+            let candidate2 = exe_dir.join("dhnetsdk.dll");
+            if candidate2.exists() {
+                return Some(candidate2);
+            }
+            let candidate3 = exe_dir.join("resources").join("bin").join("dhnetsdk.dll");
+            if candidate3.exists() {
+                return Some(candidate3);
+            }
+            let candidate4 = exe_dir.join("resources").join("dhnetsdk.dll");
+            if candidate4.exists() {
+                return Some(candidate4);
+            }
+        }
+    }
+
+    let cwd_candidates = [
+        PathBuf::from("bin/dhnetsdk.dll"),
+        PathBuf::from("dhnetsdk.dll"),
+        PathBuf::from("src-tauri/bin/dhnetsdk.dll"),
+        PathBuf::from("../src-tauri/bin/dhnetsdk.dll"),
+        PathBuf::from(r"C:\Program Files\SmartPSSLite\dhnetsdk.dll"),
+        PathBuf::from(r"C:\Program Files\SmartPSS\dhnetsdk.dll"),
     ];
     for p in &cwd_candidates {
         if p.exists() {
@@ -786,6 +830,602 @@ async fn start_video_download(
     }
 }
 
+#[cfg(windows)]
+unsafe extern "system" {
+    fn LoadLibraryW(lpLibFileName: *const u16) -> *mut std::ffi::c_void;
+    fn GetProcAddress(hModule: *mut std::ffi::c_void, lpProcName: *const u8) -> *mut std::ffi::c_void;
+    fn SetDllDirectoryW(lpPathName: *const u16) -> i32;
+}
+
+#[cfg(windows)]
+fn to_wide_null(os_str: &std::ffi::OsStr) -> Vec<u16> {
+    use std::os::windows::ffi::OsStrExt;
+    os_str.encode_wide().chain(std::iter::once(0)).collect()
+}
+
+#[cfg(windows)]
+fn copy_str_to_buf(src: &str, buf: &mut [u8]) {
+    let bytes = src.as_bytes();
+    let len = bytes.len().min(buf.len() - 1);
+    buf[..len].copy_from_slice(&bytes[..len]);
+    buf[len] = 0;
+}
+
+#[cfg(windows)]
+#[repr(C)]
+struct NetInLoginWithHighLevelSecurity {
+    dw_size: u32,
+    sz_ip: [u8; 64],
+    n_port: i32,
+    sz_user_name: [u8; 64],
+    sz_password: [u8; 64],
+    em_spec_cap: i32,
+    p_cap_param: *mut std::ffi::c_void,
+}
+
+#[cfg(windows)]
+#[repr(C)]
+struct NetDeviceInfoEx {
+    s_serial_number: [u8; 48],
+    by_alarm_in_port_num: u8,
+    by_alarm_out_port_num: u8,
+    by_disk_num: u8,
+    by_dvr_type: u8,
+    by_chan_num: u8,
+    by_limit_login_time: u8,
+    by_left_log_times: u8,
+    b_reserved: u8,
+    by_lock_left_time: i32,
+    reserved: [u8; 24],
+}
+
+#[cfg(windows)]
+#[repr(C)]
+struct NetOutLoginWithHighLevelSecurity {
+    dw_size: u32,
+    stu_device_info: NetDeviceInfoEx,
+    n_error: i32,
+    reserved: [u8; 132],
+}
+
+#[cfg(windows)]
+#[repr(C)]
+#[derive(Clone, Copy, Default, Debug)]
+struct NetTime {
+    dw_year: u32,
+    dw_month: u32,
+    dw_day: u32,
+    dw_hour: u32,
+    dw_minute: u32,
+    dw_second: u32,
+}
+
+#[cfg(windows)]
+struct DahuaSdkContext {
+    finished: AtomicBool,
+    total_bytes: AtomicU64,
+    downloaded_bytes: AtomicU64,
+}
+
+#[cfg(windows)]
+unsafe extern "system" fn dahua_download_cb(
+    _handle: i64,
+    total_size: u32,
+    download_size: u32,
+    userdata: usize,
+) {
+    if userdata != 0 {
+        let ctx = unsafe { &*(userdata as *const DahuaSdkContext) };
+        if total_size > 0 {
+            ctx.total_bytes.store(total_size as u64, Ordering::Relaxed);
+        }
+        if download_size != 0xFFFFFFFF {
+            ctx.downloaded_bytes.store(download_size as u64, Ordering::Relaxed);
+        }
+        if download_size == 0xFFFFFFFF || (download_size == total_size && total_size > 0) {
+            ctx.finished.store(true, Ordering::SeqCst);
+        }
+    }
+}
+
+#[cfg(windows)]
+fn parse_iso_to_net_time(iso: &str) -> Option<NetTime> {
+    let clean = iso.replace('T', " ").replace('Z', "");
+    let mut parts = clean.split_whitespace();
+    let date_str = parts.next()?;
+    let time_str = parts.next()?;
+    let mut d_iter = date_str.split('-');
+    let year: u32 = d_iter.next()?.parse().ok()?;
+    let month: u32 = d_iter.next()?.parse().ok()?;
+    let day: u32 = d_iter.next()?.parse().ok()?;
+
+    let time_clean = time_str.split('.').next()?;
+    let mut t_iter = time_clean.split(':');
+    let hour: u32 = t_iter.next()?.parse().ok()?;
+    let minute: u32 = t_iter.next()?.parse().ok()?;
+    let second: u32 = t_iter.next()?.parse().ok()?;
+
+    Some(NetTime {
+        dw_year: year,
+        dw_month: month,
+        dw_day: day,
+        dw_hour: hour,
+        dw_minute: minute,
+        dw_second: second,
+    })
+}
+
+#[tauri::command]
+async fn start_hikvision_direct_download(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    download_id: String,
+    ip: String,
+    port: u16,
+    user: String,
+    pass: String,
+    channel: u32,
+    start_time_iso: String,
+    end_time_iso: String,
+    destination_file_path: String,
+    duration_seconds: Option<u64>,
+) -> Result<String, String> {
+    let dest_path = PathBuf::from(&destination_file_path);
+    if let Some(parent) = dest_path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+
+    #[cfg(windows)]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let auth = format!("{}:{}", user, pass);
+        let http_port = if port == 0 || port == 554 { 80 } else { port };
+
+        // 1. Query segments on Hikvision hard disk via ISAPI search
+        let search_xml = format!(
+            r#"<?xml version="1.0" encoding="utf-8"?><CMSearchDescription><searchID>C92DC285-8F30-0001-40C6-F0EFA8FB18B5</searchID><trackList><trackID>{}01</trackID></trackList><timeSpanList><timeSpan><startTime>{}</startTime><endTime>{}</endTime></timeSpan></timeSpanList><maxResults>20</maxResults><searchResultPostion>0</searchResultPostion><metadataList><metadataDescriptor>//recordType.meta.std-cgi.com</metadataDescriptor></metadataList></CMSearchDescription>"#,
+            channel, start_time_iso, end_time_iso
+        );
+
+        let mut search_cmd = Command::new("curl.exe");
+        search_cmd.args([
+            "-s", "-k", "-L", "--location-trusted", "--connect-timeout", "3", "--max-time", "8",
+            "--anyauth", "-u", &auth,
+            "-X", "POST",
+            "-H", "Content-Type: text/xml",
+            "-d", &search_xml,
+            &format!("http://{}:{}/ISAPI/ContentMgmt/search", ip, http_port),
+        ]);
+        search_cmd.creation_flags(CREATE_NO_WINDOW);
+        let search_res = search_cmd.output().map_err(|e| format!("Error en búsqueda ISAPI Hikvision: {}", e))?;
+        let search_text = String::from_utf8_lossy(&search_res.stdout);
+
+        let mut target_uri = None;
+        for part in search_text.split("<playbackURI>").skip(1) {
+            if let Some(end) = part.find("</playbackURI>") {
+                let raw_uri = &part[..end];
+                let clean_uri = raw_uri.replace("&amp;", "&");
+                target_uri = Some(clean_uri);
+                break;
+            }
+        }
+
+        let playback_uri = target_uri.ok_or_else(|| {
+            "No se encontraron segmentos grabados en el disco Hikvision para el intervalo solicitado".to_string()
+        })?;
+
+        // 2. Direct HTTP disk extraction via ISAPI downloadRequest
+        let dl_body = format!(
+            r#"<downloadRequest><playbackURI>{}</playbackURI></downloadRequest>"#,
+            playback_uri
+        );
+
+        let mut cmd = Command::new("curl.exe");
+        cmd.args([
+            "-s", "-k", "-L", "--location-trusted", "-g", "--no-styled-output",
+            "--anyauth", "-u", &auth,
+            "-X", "POST",
+            "-H", "Content-Type: text/xml",
+            "-d", &dl_body,
+            "-o", &destination_file_path,
+            &format!("http://{}:{}/ISAPI/ContentMgmt/download", ip, http_port),
+        ]);
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let mut child = cmd.spawn().map_err(|e| format!("No se pudo iniciar la descarga Hikvision: {}", e))?;
+        let pid = child.id();
+
+        {
+            let mut map = state.active_downloads.lock().unwrap();
+            map.insert(download_id.clone(), pid);
+        }
+
+        let dur = duration_seconds.unwrap_or(300);
+        let estimated_bytes = (2.5 * 1024.0 * 1024.0 / 8.0 * dur as f64) as u64;
+
+        let dl_id = download_id.clone();
+        let app_clone = app.clone();
+        let state_downloads = state.active_downloads.clone();
+        let file_path_clone = destination_file_path.clone();
+
+        let result = tauri::async_runtime::spawn_blocking(move || {
+            let start_time = std::time::Instant::now();
+            let mut last_bytes = 0u64;
+            let mut last_time = start_time;
+
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+
+                let is_registered = {
+                    let map = state_downloads.lock().unwrap();
+                    map.contains_key(&dl_id)
+                };
+                if !is_registered {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    let _ = fs::remove_file(&file_path_clone);
+                    let _ = app_clone.emit("download-progress", DownloadProgressPayload {
+                        id: dl_id.clone(),
+                        status: "cancelled".to_string(),
+                        bytes_downloaded: 0,
+                        speed_bps: 0.0,
+                        percentage: 0,
+                        error: Some("Descarga cancelada por el usuario.".to_string()),
+                    });
+                    return Err("Descarga cancelada.".to_string());
+                }
+
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        {
+                            let mut map = state_downloads.lock().unwrap();
+                            map.remove(&dl_id);
+                        }
+
+                        let file_size = fs::metadata(&file_path_clone).map(|m| m.len()).unwrap_or(0);
+                        if (status.success() || file_size > 50_000) && file_size > 0 {
+                            let _ = app_clone.emit("download-progress", DownloadProgressPayload {
+                                id: dl_id.clone(),
+                                status: "completed".to_string(),
+                                bytes_downloaded: file_size,
+                                speed_bps: 0.0,
+                                percentage: 100,
+                                error: None,
+                            });
+                            return Ok(file_path_clone);
+                        } else {
+                            let _ = fs::remove_file(&file_path_clone);
+                            let err_msg = "El grabador Hikvision no envió datos de video para este segmento.".to_string();
+                            let _ = app_clone.emit("download-progress", DownloadProgressPayload {
+                                id: dl_id.clone(),
+                                status: "error".to_string(),
+                                bytes_downloaded: file_size,
+                                speed_bps: 0.0,
+                                percentage: 0,
+                                error: Some(err_msg.clone()),
+                            });
+                            return Err(err_msg);
+                        }
+                    }
+                    Ok(None) => {
+                        let current_bytes = fs::metadata(&file_path_clone).map(|m| m.len()).unwrap_or(0);
+                        let now = std::time::Instant::now();
+                        let dt = (now - last_time).as_secs_f64();
+                        let speed_bps = if dt > 0.0 {
+                            (current_bytes.saturating_sub(last_bytes)) as f64 / dt
+                        } else {
+                            0.0
+                        };
+                        last_bytes = current_bytes;
+                        last_time = now;
+
+                        let percentage = if estimated_bytes > 0 {
+                            ((current_bytes as f64 / estimated_bytes as f64) * 100.0).min(99.0) as u32
+                        } else {
+                            50
+                        };
+
+                        let _ = app_clone.emit("download-progress", DownloadProgressPayload {
+                            id: dl_id.clone(),
+                            status: "downloading".to_string(),
+                            bytes_downloaded: current_bytes,
+                            speed_bps,
+                            percentage,
+                            error: None,
+                        });
+                    }
+                    Err(e) => {
+                        let _ = fs::remove_file(&file_path_clone);
+                        let _ = app_clone.emit("download-progress", DownloadProgressPayload {
+                            id: dl_id.clone(),
+                            status: "error".to_string(),
+                            bytes_downloaded: 0,
+                            speed_bps: 0.0,
+                            percentage: 0,
+                            error: Some(e.to_string()),
+                        });
+                        return Err(e.to_string());
+                    }
+                }
+            }
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+
+        result
+    }
+    #[cfg(not(windows))]
+    {
+        Err("Unsupported OS".to_string())
+    }
+}
+
+#[tauri::command]
+async fn start_dahua_direct_download(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    download_id: String,
+    ip: String,
+    port: Option<u16>,
+    user: String,
+    pass: String,
+    channel: u32,
+    start_time: String,
+    end_time: String,
+    destination_file_path: String,
+    duration_seconds: Option<u64>,
+) -> Result<String, String> {
+    let dest_path = PathBuf::from(&destination_file_path);
+    if let Some(parent) = dest_path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+
+    #[cfg(windows)]
+    {
+        let dl_id = download_id.clone();
+        let app_clone = app.clone();
+        let state_dahua = state.active_dahua_downloads.clone();
+        let file_path_clone = destination_file_path.clone();
+
+        let result = tauri::async_runtime::spawn_blocking(move || {
+            let sdk_path = get_dhnetsdk_path()
+                .ok_or_else(|| "No se encontró dhnetsdk.dll en las rutas del sistema".to_string())?;
+
+            if let Some(parent) = sdk_path.parent() {
+                let wide_dir = to_wide_null(parent.as_os_str());
+                unsafe { SetDllDirectoryW(wide_dir.as_ptr()); }
+            }
+
+            let wide_sdk = to_wide_null(sdk_path.as_os_str());
+            let h_mod = unsafe { LoadLibraryW(wide_sdk.as_ptr()) };
+            if h_mod.is_null() {
+                return Err(format!("No se pudo cargar dhnetsdk.dll desde {:?}", sdk_path));
+            }
+
+            let fn_init = unsafe {
+                let p = GetProcAddress(h_mod, b"CLIENT_Init\0".as_ptr());
+                if p.is_null() { return Err("Función CLIENT_Init no encontrada".to_string()); }
+                std::mem::transmute::<*mut std::ffi::c_void, unsafe extern "system" fn(usize, usize) -> bool>(p)
+            };
+            let fn_login = unsafe {
+                let p = GetProcAddress(h_mod, b"CLIENT_LoginWithHighLevelSecurity\0".as_ptr());
+                if p.is_null() { return Err("Función CLIENT_LoginWithHighLevelSecurity no encontrada".to_string()); }
+                std::mem::transmute::<*mut std::ffi::c_void, unsafe extern "system" fn(*const NetInLoginWithHighLevelSecurity, *mut NetOutLoginWithHighLevelSecurity) -> i64>(p)
+            };
+            let fn_download = unsafe {
+                let p = GetProcAddress(h_mod, b"CLIENT_DownloadByTimeEx\0".as_ptr());
+                if p.is_null() { return Err("Función CLIENT_DownloadByTimeEx no encontrada".to_string()); }
+                std::mem::transmute::<*mut std::ffi::c_void, unsafe extern "system" fn(i64, i32, i32, *const NetTime, *const NetTime, *const i8, Option<unsafe extern "system" fn(i64, u32, u32, usize)>, usize, usize, usize, usize) -> i64>(p)
+            };
+            let fn_stop = unsafe {
+                let p = GetProcAddress(h_mod, b"CLIENT_StopDownload\0".as_ptr());
+                if p.is_null() { return Err("Función CLIENT_StopDownload no encontrada".to_string()); }
+                std::mem::transmute::<*mut std::ffi::c_void, unsafe extern "system" fn(i64) -> bool>(p)
+            };
+            let fn_logout = unsafe {
+                let p = GetProcAddress(h_mod, b"CLIENT_Logout\0".as_ptr());
+                if p.is_null() { return Err("Función CLIENT_Logout no encontrada".to_string()); }
+                std::mem::transmute::<*mut std::ffi::c_void, unsafe extern "system" fn(i64) -> bool>(p)
+            };
+
+            unsafe { fn_init(0, 0); }
+
+            let n_port = match port {
+                Some(p) if p != 0 && p != 554 && p != 80 => p as i32,
+                _ => 37777,
+            };
+
+            let mut in_param = NetInLoginWithHighLevelSecurity {
+                dw_size: std::mem::size_of::<NetInLoginWithHighLevelSecurity>() as u32,
+                sz_ip: [0; 64],
+                n_port,
+                sz_user_name: [0; 64],
+                sz_password: [0; 64],
+                em_spec_cap: 0,
+                p_cap_param: std::ptr::null_mut(),
+            };
+            copy_str_to_buf(&ip, &mut in_param.sz_ip);
+            copy_str_to_buf(&user, &mut in_param.sz_user_name);
+            copy_str_to_buf(&pass, &mut in_param.sz_password);
+
+            let mut out_param = NetOutLoginWithHighLevelSecurity {
+                dw_size: std::mem::size_of::<NetOutLoginWithHighLevelSecurity>() as u32,
+                stu_device_info: unsafe { std::mem::zeroed() },
+                n_error: 0,
+                reserved: [0; 132],
+            };
+
+            let login_id = unsafe { fn_login(&in_param, &mut out_param) };
+            if login_id == 0 {
+                return Err(format!(
+                    "Error al conectar con Dahua {}:{} (Código de error: {})",
+                    ip, n_port, out_param.n_error
+                ));
+            }
+
+            let tm_start = parse_iso_to_net_time(&start_time)
+                .ok_or_else(|| "Formato de hora de inicio inválido para Dahua".to_string())?;
+            let tm_end = parse_iso_to_net_time(&end_time)
+                .ok_or_else(|| "Formato de hora de fin inválido para Dahua".to_string())?;
+
+            let path_cstr = std::ffi::CString::new(file_path_clone.clone())
+                .map_err(|e| e.to_string())?;
+
+            let ctx = Arc::new(DahuaSdkContext {
+                finished: AtomicBool::new(false),
+                total_bytes: AtomicU64::new(0),
+                downloaded_bytes: AtomicU64::new(0),
+            });
+            let ctx_ptr = Arc::as_ptr(&ctx) as usize;
+
+            let cancel_flag = Arc::new(AtomicBool::new(false));
+            {
+                let mut map = state_dahua.lock().unwrap();
+                map.insert(dl_id.clone(), cancel_flag.clone());
+            }
+
+            let ch_idx = (channel.saturating_sub(1)) as i32;
+            let dl_handle = unsafe {
+                fn_download(
+                    login_id,
+                    ch_idx,
+                    0,
+                    &tm_start,
+                    &tm_end,
+                    path_cstr.as_ptr(),
+                    Some(dahua_download_cb),
+                    ctx_ptr,
+                    0,
+                    0,
+                    0,
+                )
+            };
+
+            if dl_handle == 0 {
+                unsafe { fn_logout(login_id); }
+                {
+                    let mut map = state_dahua.lock().unwrap();
+                    map.remove(&dl_id);
+                }
+                return Err(format!("Dahua no pudo iniciar la extracción de disco para el canal {}", channel));
+            }
+
+            let dur = duration_seconds.unwrap_or(300);
+            let estimated_bytes = (2.5 * 1024.0 * 1024.0 / 8.0 * dur as f64) as u64;
+
+            let mut last_bytes = 0u64;
+            let mut last_time = std::time::Instant::now();
+            let mut no_growth_ticks = 0;
+
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+
+                if cancel_flag.load(Ordering::SeqCst) {
+                    unsafe {
+                        fn_stop(dl_handle);
+                        fn_logout(login_id);
+                    }
+                    {
+                        let mut map = state_dahua.lock().unwrap();
+                        map.remove(&dl_id);
+                    }
+                    let _ = fs::remove_file(&file_path_clone);
+                    let _ = app_clone.emit("download-progress", DownloadProgressPayload {
+                        id: dl_id.clone(),
+                        status: "cancelled".to_string(),
+                        bytes_downloaded: 0,
+                        speed_bps: 0.0,
+                        percentage: 0,
+                        error: Some("Descarga cancelada por el usuario.".to_string()),
+                    });
+                    return Err("Descarga cancelada.".to_string());
+                }
+
+                let current_bytes = fs::metadata(&file_path_clone).map(|m| m.len()).unwrap_or(0);
+                let now = std::time::Instant::now();
+                let dt = (now - last_time).as_secs_f64();
+                let speed_bps = if dt > 0.0 {
+                    (current_bytes.saturating_sub(last_bytes)) as f64 / dt
+                } else {
+                    0.0
+                };
+                last_bytes = current_bytes;
+                last_time = now;
+
+                let is_finished = ctx.finished.load(Ordering::SeqCst);
+                let total = ctx.total_bytes.load(Ordering::Relaxed);
+
+                if current_bytes > 0 && speed_bps < 1000.0 {
+                    no_growth_ticks += 1;
+                } else {
+                    no_growth_ticks = 0;
+                }
+
+                let percentage = if total > 0 {
+                    ((current_bytes as f64 / total as f64) * 100.0).min(99.0) as u32
+                } else if estimated_bytes > 0 {
+                    ((current_bytes as f64 / estimated_bytes as f64) * 100.0).min(99.0) as u32
+                } else {
+                    50
+                };
+
+                if is_finished || (no_growth_ticks >= 25 && current_bytes > 50_000) {
+                    unsafe {
+                        fn_stop(dl_handle);
+                        fn_logout(login_id);
+                    }
+                    {
+                        let mut map = state_dahua.lock().unwrap();
+                        map.remove(&dl_id);
+                    }
+
+                    let file_size = fs::metadata(&file_path_clone).map(|m| m.len()).unwrap_or(0);
+                    if file_size > 50_000 {
+                        let _ = app_clone.emit("download-progress", DownloadProgressPayload {
+                            id: dl_id.clone(),
+                            status: "completed".to_string(),
+                            bytes_downloaded: file_size,
+                            speed_bps: 0.0,
+                            percentage: 100,
+                            error: None,
+                        });
+                        return Ok(file_path_clone);
+                    } else {
+                        let _ = fs::remove_file(&file_path_clone);
+                        let err_msg = "Archivo vacío recibido del grabador Dahua.".to_string();
+                        let _ = app_clone.emit("download-progress", DownloadProgressPayload {
+                            id: dl_id.clone(),
+                            status: "error".to_string(),
+                            bytes_downloaded: 0,
+                            speed_bps: 0.0,
+                            percentage: 0,
+                            error: Some(err_msg.clone()),
+                        });
+                        return Err(err_msg);
+                    }
+                }
+
+                let _ = app_clone.emit("download-progress", DownloadProgressPayload {
+                    id: dl_id.clone(),
+                    status: "downloading".to_string(),
+                    bytes_downloaded: current_bytes,
+                    speed_bps,
+                    percentage,
+                    error: None,
+                });
+            }
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+
+        result
+    }
+    #[cfg(not(windows))]
+    {
+        Err("Unsupported OS".to_string())
+    }
+}
+
 #[tauri::command]
 fn cancel_video_download(state: State<'_, AppState>, download_id: String) -> Result<(), String> {
     let mut map = state.active_downloads.lock().unwrap();
@@ -798,6 +1438,10 @@ fn cancel_video_download(state: State<'_, AppState>, download_id: String) -> Res
             cmd.creation_flags(CREATE_NO_WINDOW);
             let _ = cmd.output();
         }
+    }
+    let mut dahua_map = state.active_dahua_downloads.lock().unwrap();
+    if let Some(stop_flag) = dahua_map.remove(&download_id) {
+        stop_flag.store(true, Ordering::SeqCst);
     }
     Ok(())
 }
@@ -1108,6 +1752,7 @@ pub fn run() {
             go2rtc_process: Mutex::new(None),
             whatsapp_process: Mutex::new(None),
             active_downloads: Arc::new(Mutex::new(HashMap::new())),
+            active_dahua_downloads: Arc::new(Mutex::new(HashMap::new())),
         })
         .invoke_handler(tauri::generate_handler![
             check_go2rtc_running,
@@ -1128,6 +1773,8 @@ pub fn run() {
             prompt_save_file,
             save_binary_file,
             start_video_download,
+            start_hikvision_direct_download,
+            start_dahua_direct_download,
             cancel_video_download,
             open_folder_and_select,
             query_recorded_days,
