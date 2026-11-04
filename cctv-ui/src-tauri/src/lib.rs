@@ -1342,7 +1342,7 @@ async fn start_dahua_direct_download(
 
                 let is_finished = download_size == -1 || (total_size > 0 && download_size >= total_size);
 
-                if is_finished || (no_growth_ticks >= 25 && current_bytes > 50_000) {
+                if is_finished || (no_growth_ticks >= 60 && current_bytes > 50_000) {
                     unsafe {
                         fn_stop(dl_handle);
                         fn_logout(login_id);

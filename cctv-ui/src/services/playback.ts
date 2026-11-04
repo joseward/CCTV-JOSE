@@ -161,6 +161,7 @@ export async function downloadClipWithProgress(
     speedBps: 0,
   };
   onProgress(currentProgress);
+  let cleanListener: (() => void) | null = null;
 
   // 1. HIGH-SPEED NATIVE ISAPI DOWNLOAD (HIKVISION DVR / NVR)
   const isHikvision = camera.vendorPreset?.toLowerCase() === 'hikvision';
@@ -187,7 +188,6 @@ export async function downloadClipWithProgress(
       const { invoke } = await import('@tauri-apps/api/core');
       const { listen } = await import('@tauri-apps/api/event');
 
-      let cleanListener: (() => void) | null = null;
       cleanListener = await listen<any>('download-progress', (event) => {
         if (event.payload.id === downloadId) {
           const payload = event.payload;
@@ -229,6 +229,7 @@ export async function downloadClipWithProgress(
       if (cleanListener) cleanListener();
       return savedPath;
     } catch (err: any) {
+      if (cleanListener) cleanListener();
       console.warn('[playback] Descarga ISAPI Turbo Hikvision falló, usando go2rtc stream...', err);
       // Fallback to go2rtc below
     }
@@ -259,7 +260,6 @@ export async function downloadClipWithProgress(
       const { invoke } = await import('@tauri-apps/api/core');
       const { listen } = await import('@tauri-apps/api/event');
 
-      let cleanListener: (() => void) | null = null;
       cleanListener = await listen<any>('download-progress', (event) => {
         if (event.payload.id === downloadId) {
           const payload = event.payload;
@@ -301,6 +301,7 @@ export async function downloadClipWithProgress(
       if (cleanListener) cleanListener();
       return savedPath;
     } catch (err: any) {
+      if (cleanListener) cleanListener();
       console.warn('[playback] Descarga Directa NetSDK Dahua falló, usando go2rtc stream...', err);
       // Fallback to go2rtc below
     }
@@ -331,7 +332,6 @@ export async function downloadClipWithProgress(
       const { invoke } = await import('@tauri-apps/api/core');
       const { listen } = await import('@tauri-apps/api/event');
 
-      let cleanListener: (() => void) | null = null;
       cleanListener = await listen<any>('download-progress', (event) => {
         if (event.payload.id === downloadId) {
           const payload = event.payload;
