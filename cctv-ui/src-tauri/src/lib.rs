@@ -1,14 +1,14 @@
 use std::fs;
 use std::path::PathBuf;
 use std::process::{Child, Command};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::io::Write;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use tauri_plugin_updater::UpdaterExt;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager, State,
+    Emitter, Manager, State,
 };
 
 #[cfg(windows)]
@@ -17,6 +17,7 @@ use std::os::windows::process::CommandExt;
 struct AppState {
     go2rtc_process: Mutex<Option<Child>>,
     whatsapp_process: Mutex<Option<Child>>,
+    active_downloads: Arc<Mutex<HashMap<String, u32>>>,
 }
 
 fn get_whatsapp_gateway_dir() -> Option<PathBuf> {
@@ -386,51 +387,55 @@ fn open_dvr_web(url: String, force_edge: bool) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn fetch_dvr_api(
+async fn fetch_dvr_api(
     url: String,
     method: String,
     auth: Option<String>,
     body: Option<String>,
     content_type: Option<String>,
 ) -> Result<String, String> {
-    #[cfg(windows)]
-    {
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        let mut cmd = Command::new("curl.exe");
-        cmd.args(["-s", "-k", "-L", "--location-trusted", "--max-time", "6"]);
+    tauri::async_runtime::spawn_blocking(move || {
+        #[cfg(windows)]
+        {
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            let mut cmd = Command::new("curl.exe");
+            cmd.args(["-s", "-k", "-L", "--location-trusted", "--connect-timeout", "2", "--max-time", "4"]);
 
-        if let Some(ref a) = auth {
-            if !a.is_empty() {
-                cmd.args(["--anyauth", "-u", a]);
+            if let Some(ref a) = auth {
+                if !a.is_empty() {
+                    cmd.args(["--anyauth", "-u", a]);
+                }
+            }
+
+            if method == "PUT" || method == "POST" {
+                cmd.args(["-X", &method]);
+                if let Some(ref ct) = content_type {
+                    cmd.args(["-H", &format!("Content-Type: {}", ct)]);
+                }
+                if let Some(ref b) = body {
+                    cmd.args(["-d", b]);
+                }
+            }
+
+            cmd.arg(&url);
+            cmd.creation_flags(CREATE_NO_WINDOW);
+
+            let output = cmd.output().map_err(|e| format!("Error ejecutando curl: {}", e))?;
+            if output.status.success() {
+                let res = String::from_utf8_lossy(&output.stdout).to_string();
+                Ok(res)
+            } else {
+                let err = String::from_utf8_lossy(&output.stderr).to_string();
+                Err(if err.is_empty() { format!("Error status: {}", output.status) } else { err })
             }
         }
-
-        if method == "PUT" || method == "POST" {
-            cmd.args(["-X", &method]);
-            if let Some(ref ct) = content_type {
-                cmd.args(["-H", &format!("Content-Type: {}", ct)]);
-            }
-            if let Some(ref b) = body {
-                cmd.args(["-d", b]);
-            }
+        #[cfg(not(windows))]
+        {
+            Err("Unsupported OS".to_string())
         }
-
-        cmd.arg(&url);
-        cmd.creation_flags(CREATE_NO_WINDOW);
-
-        let output = cmd.output().map_err(|e| format!("Error ejecutando curl: {}", e))?;
-        if output.status.success() {
-            let res = String::from_utf8_lossy(&output.stdout).to_string();
-            Ok(res)
-        } else {
-            let err = String::from_utf8_lossy(&output.stderr).to_string();
-            Err(if err.is_empty() { format!("Error status: {}", output.status) } else { err })
-        }
-    }
-    #[cfg(not(windows))]
-    {
-        Err("Unsupported OS".to_string())
-    }
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -601,6 +606,199 @@ fn prompt_save_file(default_name: String, filter: String) -> Result<Option<Strin
 fn save_binary_file(file_path: String, bytes: Vec<u8>) -> Result<String, String> {
     fs::write(&file_path, bytes).map_err(|e| format!("No se pudo guardar el archivo: {}", e))?;
     Ok(file_path)
+}
+
+#[derive(serde::Serialize, Clone)]
+pub struct DownloadProgressPayload {
+    pub id: String,
+    pub status: String,
+    pub bytes_downloaded: u64,
+    pub speed_bps: f64,
+    pub percentage: u32,
+    pub error: Option<String>,
+}
+
+#[tauri::command]
+async fn start_video_download(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    download_id: String,
+    url: String,
+    destination_file_path: String,
+    auth: Option<String>,
+    duration_seconds: Option<u64>,
+) -> Result<String, String> {
+    let dest_path = PathBuf::from(&destination_file_path);
+    if let Some(parent) = dest_path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+
+    #[cfg(windows)]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let mut cmd = Command::new("curl.exe");
+        cmd.args(["-s", "-k", "-L", "--location-trusted", "-o", &destination_file_path]);
+
+        if let Some(ref a) = auth {
+            if !a.is_empty() {
+                cmd.args(["--anyauth", "-u", a]);
+            }
+        }
+        cmd.arg(&url);
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let mut child = cmd.spawn().map_err(|e| format!("No se pudo iniciar el proceso de descarga: {}", e))?;
+        let pid = child.id();
+
+        // Register active download PID
+        {
+            let mut map = state.active_downloads.lock().unwrap();
+            map.insert(download_id.clone(), pid);
+        }
+
+        let dur = duration_seconds.unwrap_or(300);
+        let estimated_bytes = (2.5 * 1024.0 * 1024.0 / 8.0 * dur as f64) as u64;
+
+        let dl_id = download_id.clone();
+        let app_clone = app.clone();
+        let state_downloads = state.active_downloads.clone();
+        let file_path_clone = destination_file_path.clone();
+
+        let result = tauri::async_runtime::spawn_blocking(move || {
+            let start_time = std::time::Instant::now();
+            let mut last_bytes = 0u64;
+            let mut last_time = start_time;
+
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+
+                // Check if cancelled
+                let is_registered = {
+                    let map = state_downloads.lock().unwrap();
+                    map.contains_key(&dl_id)
+                };
+                if !is_registered {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    let _ = fs::remove_file(&file_path_clone);
+                    let _ = app_clone.emit("download-progress", DownloadProgressPayload {
+                        id: dl_id.clone(),
+                        status: "cancelled".to_string(),
+                        bytes_downloaded: 0,
+                        speed_bps: 0.0,
+                        percentage: 0,
+                        error: Some("Descarga cancelada por el usuario.".to_string()),
+                    });
+                    return Err("Descarga cancelada.".to_string());
+                }
+
+                // Check if child exited
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        {
+                            let mut map = state_downloads.lock().unwrap();
+                            map.remove(&dl_id);
+                        }
+
+                        let file_size = fs::metadata(&file_path_clone).map(|m| m.len()).unwrap_or(0);
+                        if status.success() && file_size > 0 {
+                            let _ = app_clone.emit("download-progress", DownloadProgressPayload {
+                                id: dl_id.clone(),
+                                status: "completed".to_string(),
+                                bytes_downloaded: file_size,
+                                speed_bps: 0.0,
+                                percentage: 100,
+                                error: None,
+                            });
+                            return Ok(file_path_clone);
+                        } else {
+                            let _ = fs::remove_file(&file_path_clone);
+                            let err_msg = if file_size == 0 {
+                                "El archivo descargado está vacío o el grabador no envió datos.".to_string()
+                            } else {
+                                format!("Error en el proceso de descarga: {:?}", status)
+                            };
+                            let _ = app_clone.emit("download-progress", DownloadProgressPayload {
+                                id: dl_id.clone(),
+                                status: "error".to_string(),
+                                bytes_downloaded: file_size,
+                                speed_bps: 0.0,
+                                percentage: 0,
+                                error: Some(err_msg.clone()),
+                            });
+                            return Err(err_msg);
+                        }
+                    }
+                    Ok(None) => {
+                        let current_bytes = fs::metadata(&file_path_clone).map(|m| m.len()).unwrap_or(0);
+                        let now = std::time::Instant::now();
+                        let dt = (now - last_time).as_secs_f64();
+                        let speed_bps = if dt > 0.0 {
+                            (current_bytes.saturating_sub(last_bytes)) as f64 / dt
+                        } else {
+                            0.0
+                        };
+                        last_bytes = current_bytes;
+                        last_time = now;
+
+                        let elapsed_sec = (now - start_time).as_secs_f64();
+                        let time_pct = ((elapsed_sec / dur as f64) * 100.0).min(99.0) as u32;
+                        let size_pct = if estimated_bytes > 0 {
+                            ((current_bytes as f64 / estimated_bytes as f64) * 100.0).min(99.0) as u32
+                        } else {
+                            0
+                        };
+                        let percentage = time_pct.max(size_pct);
+
+                        let _ = app_clone.emit("download-progress", DownloadProgressPayload {
+                            id: dl_id.clone(),
+                            status: "downloading".to_string(),
+                            bytes_downloaded: current_bytes,
+                            speed_bps,
+                            percentage,
+                            error: None,
+                        });
+                    }
+                    Err(e) => {
+                        let _ = fs::remove_file(&file_path_clone);
+                        let _ = app_clone.emit("download-progress", DownloadProgressPayload {
+                            id: dl_id.clone(),
+                            status: "error".to_string(),
+                            bytes_downloaded: 0,
+                            speed_bps: 0.0,
+                            percentage: 0,
+                            error: Some(e.to_string()),
+                        });
+                        return Err(e.to_string());
+                    }
+                }
+            }
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+
+        result
+    }
+    #[cfg(not(windows))]
+    {
+        Err("Unsupported OS".to_string())
+    }
+}
+
+#[tauri::command]
+fn cancel_video_download(state: State<'_, AppState>, download_id: String) -> Result<(), String> {
+    let mut map = state.active_downloads.lock().unwrap();
+    if let Some(pid) = map.remove(&download_id) {
+        #[cfg(windows)]
+        {
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            let mut cmd = Command::new("taskkill");
+            cmd.args(["/F", "/T", "/PID", &pid.to_string()]);
+            cmd.creation_flags(CREATE_NO_WINDOW);
+            let _ = cmd.output();
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -908,6 +1106,7 @@ pub fn run() {
         .manage(AppState {
             go2rtc_process: Mutex::new(None),
             whatsapp_process: Mutex::new(None),
+            active_downloads: Arc::new(Mutex::new(HashMap::new())),
         })
         .invoke_handler(tauri::generate_handler![
             check_go2rtc_running,
@@ -927,6 +1126,8 @@ pub fn run() {
             close_app_completely,
             prompt_save_file,
             save_binary_file,
+            start_video_download,
+            cancel_video_download,
             open_folder_and_select,
             query_recorded_days,
             check_update,

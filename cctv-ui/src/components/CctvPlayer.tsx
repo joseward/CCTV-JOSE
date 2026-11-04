@@ -118,6 +118,9 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
       }
       playerRef.current = null;
     }
+    if (containerRef.current) {
+      containerRef.current.innerHTML = '';
+    }
   }, []);
 
   // Exponential backoff scheduler
@@ -204,12 +207,13 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
           clearInterval(playbackIntervalRef.current);
           playbackIntervalRef.current = null;
         }
-        setStatus('connected');
+        setStatus((prev) => (prev === 'connected' ? prev : 'connected'));
         setRetryAttempt(0);
         if (vid && vid.videoWidth && vid.videoHeight) {
-          setLiveStats((prev) => ({
+          const resStr = `${vid.videoWidth}x${vid.videoHeight}`;
+          setLiveStats((prev) => (prev.resolution === resStr ? prev : {
             ...prev,
-            resolution: `${vid.videoWidth}x${vid.videoHeight}`,
+            resolution: resStr,
             fps: 25,
           }));
         }
@@ -225,13 +229,12 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
         player.video.playsInline = true;
         player.video.autoplay = true;
 
-        player.video.addEventListener('playing', markConnected);
-        player.video.addEventListener('loadeddata', markConnected);
-        player.video.addEventListener('canplay', markConnected);
-        player.video.addEventListener('timeupdate', markConnected);
+        player.video.addEventListener('playing', markConnected, { once: true });
+        player.video.addEventListener('loadeddata', markConnected, { once: true });
+        player.video.addEventListener('canplay', markConnected, { once: true });
       }
 
-      // Continuous playback poller fallback
+      // Continuous playback poller fallback (stops once connected)
       playbackIntervalRef.current = setInterval(() => {
         if (!playerRef.current) return;
         const v = playerRef.current.video;
@@ -243,7 +246,7 @@ export const CctvPlayer: React.FC<CctvPlayerProps> = ({
             markConnected();
           }
         }
-      }, 250);
+      }, 350);
 
       // Connection timeout: If main stream doesn't render frames within 2.5s, auto-fallback to sub-stream
       const watchdogDelay = activeStreamType === 'main' ? 2500 : 10000;

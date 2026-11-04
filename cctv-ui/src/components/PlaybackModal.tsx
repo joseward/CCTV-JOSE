@@ -36,7 +36,8 @@ import {
   StopCircle,
   FileVideo,
   Globe,
-  ExternalLink
+  ExternalLink,
+  Zap
 } from 'lucide-react';
 
 if (typeof window !== 'undefined' && !customElements.get('video-rtc')) {
@@ -83,6 +84,7 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
   const [downloadStartTime, setDownloadStartTime] = useState<string>('08:00:00');
   const [downloadEndTime, setDownloadEndTime] = useState<string>('08:15:00');
   const [downloadDurationSeconds, setDownloadDurationSeconds] = useState<number>(300); // 5 mins default
+  const [downloadQuality, setDownloadQuality] = useState<'main' | 'sub'>('main');
   const [activeDownload, setActiveDownload] = useState<DownloadProgress | null>(null);
   const downloadAbortRef = useRef<AbortController | null>(null);
 
@@ -441,7 +443,8 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
         (progress) => {
           setActiveDownload(progress);
         },
-        abortCtrl.signal
+        abortCtrl.signal,
+        downloadQuality
       );
     } catch (err: any) {
       console.error('Download error:', err);
@@ -788,6 +791,12 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                     <span> • {(activeDownload.speedBps / (1024 * 1024)).toFixed(1)} MB/s</span>
                   )})
                 </span>
+                {activeDownload.isAccelerated && (
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center space-x-1">
+                    <Zap className="w-3 h-3 text-amber-400" />
+                    <span>Turbo ISAPI</span>
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center space-x-3">
@@ -1297,6 +1306,39 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                   <div className="text-right text-[11px] font-mono text-slate-300 font-medium pt-1">
                     Duración: {Math.round(downloadDurationSeconds / 60)} min • Peso estimado: ~{((downloadDurationSeconds * 2.5) / 8).toFixed(1)} MB
                   </div>
+                </div>
+              )}
+
+              {/* Quality Preset Selector */}
+              <div className="flex items-center justify-between p-2.5 bg-slate-950/70 border border-slate-800 rounded-xl">
+                <div>
+                  <span className="block text-xs font-semibold text-white">Calidad del archivo MP4:</span>
+                  <span className="text-[10px] text-slate-400">
+                    {downloadQuality === 'main' ? 'HD Original (máximo detalle para evidencia forense)' : 'SD Rápido (archivo más ligero y descarga acelerada)'}
+                  </span>
+                </div>
+                <div className="flex items-center space-x-1 bg-slate-900 border border-slate-700/80 p-0.5 rounded-lg text-xs font-medium">
+                  <button
+                    type="button"
+                    onClick={() => setDownloadQuality('main')}
+                    className={`px-2.5 py-1 rounded-md transition ${downloadQuality === 'main' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    Original (HD)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDownloadQuality('sub')}
+                    className={`px-2.5 py-1 rounded-md transition ${downloadQuality === 'sub' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    Rápida (SD)
+                  </button>
+                </div>
+              </div>
+
+              {targetDownloadCam?.vendorPreset?.toLowerCase() === 'hikvision' && (
+                <div className="flex items-center space-x-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-300 text-xs">
+                  <Zap className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Acelerador de red ISAPI activo (descargas ultrarrápidas a velocidad de red local ~10-25 MB/s).</span>
                 </div>
               )}
 
