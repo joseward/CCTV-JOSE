@@ -681,7 +681,14 @@ async fn start_video_download(
     {
         const CREATE_NO_WINDOW: u32 = 0x08000000;
         let mut cmd = Command::new("curl.exe");
-        cmd.args(["-s", "-k", "-L", "--location-trusted", "-g", "--no-styled-output", "-o", &destination_file_path]);
+        cmd.args([
+            "-s", "-k", "-L", "--location-trusted", "-g", "--no-styled-output",
+            "--connect-timeout", "15",
+            "--keepalive-time", "10",
+            "--retry", "3",
+            "--retry-delay", "2",
+            "-o", &destination_file_path,
+        ]);
 
         if let Some(ref a) = auth {
             if !a.is_empty() {
@@ -745,8 +752,7 @@ async fn start_video_download(
                         }
 
                         let file_size = fs::metadata(&file_path_clone).map(|m| m.len()).unwrap_or(0);
-                        // If status is success OR if we collected substantial video data (> 50 KB), preserve the video!
-                        if (status.success() || file_size > 50_000) && file_size > 0 {
+                        if status.success() && file_size > 0 {
                             let _ = app_clone.emit("download-progress", DownloadProgressPayload {
                                 id: dl_id.clone(),
                                 status: "completed".to_string(),
@@ -759,9 +765,9 @@ async fn start_video_download(
                         } else {
                             let _ = fs::remove_file(&file_path_clone);
                             let err_msg = if file_size == 0 {
-                                "El archivo descargado está vacío o el grabador no envió datos.".to_string()
+                                "El grabador no envió datos de video para este intervalo.".to_string()
                             } else {
-                                format!("Error en el proceso de descarga: {:?}", status)
+                                format!("Descarga interrumpida antes de completar (código: {:?})", status.code())
                             };
                             let _ = app_clone.emit("download-progress", DownloadProgressPayload {
                                 id: dl_id.clone(),
@@ -955,13 +961,13 @@ async fn start_hikvision_direct_download(
 
         // 1. Query segments on Hikvision hard disk via ISAPI search
         let search_xml = format!(
-            r#"<?xml version="1.0" encoding="utf-8"?><CMSearchDescription><searchID>C92DC285-8F30-0001-40C6-F0EFA8FB18B5</searchID><trackList><trackID>{}01</trackID></trackList><timeSpanList><timeSpan><startTime>{}</startTime><endTime>{}</endTime></timeSpan></timeSpanList><maxResults>20</maxResults><searchResultPostion>0</searchResultPostion><metadataList><metadataDescriptor>//recordType.meta.std-cgi.com</metadataDescriptor></metadataList></CMSearchDescription>"#,
+            r#"<?xml version="1.0" encoding="utf-8"?><CMSearchDescription><searchID>C92DC285-8F30-0001-40C6-F0EFA8FB18B5</searchID><trackList><trackID>{}01</trackID></trackList><timeSpanList><timeSpan><startTime>{}</startTime><endTime>{}</endTime></timeSpan></timeSpanList><maxResults>50</maxResults><searchResultPostion>0</searchResultPostion><metadataList><metadataDescriptor>//recordType.meta.std-cgi.com</metadataDescriptor></metadataList></CMSearchDescription>"#,
             channel, start_time_iso, end_time_iso
         );
 
         let mut search_cmd = Command::new("curl.exe");
         search_cmd.args([
-            "-s", "-k", "-L", "--location-trusted", "--connect-timeout", "3", "--max-time", "8",
+            "-s", "-k", "-L", "--location-trusted", "--connect-timeout", "5", "--max-time", "12",
             "--anyauth", "-u", &auth,
             "-X", "POST",
             "-H", "Content-Type: text/xml",
@@ -972,48 +978,29 @@ async fn start_hikvision_direct_download(
         let search_res = search_cmd.output().map_err(|e| format!("Error en búsqueda ISAPI Hikvision: {}", e))?;
         let search_text = String::from_utf8_lossy(&search_res.stdout);
 
-        let mut target_uri = None;
+        let mut segments: Vec<(String, u64)> = Vec::new();
         for part in search_text.split("<playbackURI>").skip(1) {
             if let Some(end) = part.find("</playbackURI>") {
                 let raw_uri = &part[..end];
-                let clean_uri = raw_uri.replace("&amp;", "&");
-                target_uri = Some(clean_uri);
-                break;
+                let xml_uri = raw_uri.replace("&amp;", "&").replace('&', "&amp;");
+                let size = if let Some(idx) = raw_uri.find("size=") {
+                    let sub = &raw_uri[idx + 5..];
+                    let digits: String = sub.chars().take_while(|c| c.is_ascii_digit()).collect();
+                    digits.parse::<u64>().unwrap_or(0)
+                } else {
+                    0
+                };
+                segments.push((xml_uri, size));
             }
         }
 
-        let playback_uri = target_uri.ok_or_else(|| {
-            "No se encontraron segmentos grabados en el disco Hikvision para el intervalo solicitado".to_string()
-        })?;
-
-        // 2. Direct HTTP disk extraction via ISAPI downloadRequest
-        let dl_body = format!(
-            r#"<downloadRequest><playbackURI>{}</playbackURI></downloadRequest>"#,
-            playback_uri
-        );
-
-        let mut cmd = Command::new("curl.exe");
-        cmd.args([
-            "-s", "-k", "-L", "--location-trusted", "-g", "--no-styled-output",
-            "--anyauth", "-u", &auth,
-            "-X", "POST",
-            "-H", "Content-Type: text/xml",
-            "-d", &dl_body,
-            "-o", &destination_file_path,
-            &format!("http://{}:{}/ISAPI/ContentMgmt/download", ip, http_port),
-        ]);
-        cmd.creation_flags(CREATE_NO_WINDOW);
-
-        let mut child = cmd.spawn().map_err(|e| format!("No se pudo iniciar la descarga Hikvision: {}", e))?;
-        let pid = child.id();
-
-        {
-            let mut map = state.active_downloads.lock().unwrap();
-            map.insert(download_id.clone(), pid);
+        if segments.is_empty() {
+            return Err("No se encontraron grabaciones en el disco Hikvision para el intervalo solicitado.".to_string());
         }
 
-        let dur = duration_seconds.unwrap_or(300);
-        let estimated_bytes = (2.5 * 1024.0 * 1024.0 / 8.0 * dur as f64) as u64;
+        let total_expected_bytes: u64 = segments.iter().map(|(_, sz)| *sz).sum();
+        let fallback_estimated_bytes = (2.5 * 1024.0 * 1024.0 / 8.0 * duration_seconds.unwrap_or(300) as f64) as u64;
+        let total_target_bytes = if total_expected_bytes > 0 { total_expected_bytes } else { fallback_estimated_bytes };
 
         let dl_id = download_id.clone();
         let app_clone = app.clone();
@@ -1021,104 +1008,197 @@ async fn start_hikvision_direct_download(
         let file_path_clone = destination_file_path.clone();
 
         let result = tauri::async_runtime::spawn_blocking(move || {
-            let start_time = std::time::Instant::now();
-            let mut last_bytes = 0u64;
-            let mut last_time = start_time;
+            // Make sure target file is clean
+            let _ = fs::remove_file(&file_path_clone);
+            let mut final_file = fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&file_path_clone)
+                .map_err(|e| format!("No se pudo crear el archivo final de destino: {}", e))?;
 
-            loop {
-                std::thread::sleep(std::time::Duration::from_millis(200));
+            let mut cumulative_bytes: u64 = 0;
+            let mut last_progress_bytes: u64 = 0;
+            let mut last_time = std::time::Instant::now();
 
-                let is_registered = {
+            for (seg_idx, (playback_uri, _seg_size)) in segments.iter().enumerate() {
+                // Check if cancelled before starting segment
+                {
                     let map = state_downloads.lock().unwrap();
-                    map.contains_key(&dl_id)
-                };
-                if !is_registered {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    let _ = fs::remove_file(&file_path_clone);
-                    let _ = app_clone.emit("download-progress", DownloadProgressPayload {
-                        id: dl_id.clone(),
-                        status: "cancelled".to_string(),
-                        bytes_downloaded: 0,
-                        speed_bps: 0.0,
-                        percentage: 0,
-                        error: Some("Descarga cancelada por el usuario.".to_string()),
-                    });
-                    return Err("Descarga cancelada.".to_string());
+                    if !map.contains_key(&dl_id) {
+                        let _ = fs::remove_file(&file_path_clone);
+                        return Err("Descarga cancelada.".to_string());
+                    }
                 }
 
-                match child.try_wait() {
-                    Ok(Some(status)) => {
-                        {
-                            let mut map = state_downloads.lock().unwrap();
-                            map.remove(&dl_id);
+                let seg_tmp_path = if segments.len() == 1 {
+                    file_path_clone.clone()
+                } else {
+                    format!("{}.part{}", file_path_clone, seg_idx)
+                };
+
+                let dl_body = format!(
+                    r#"<downloadRequest><playbackURI>{}</playbackURI></downloadRequest>"#,
+                    playback_uri
+                );
+
+                let mut cmd = Command::new("curl.exe");
+                cmd.args([
+                    "-s", "-k", "-L", "--location-trusted", "-g", "--no-styled-output",
+                    "--connect-timeout", "15",
+                    "--keepalive-time", "10",
+                    "--retry", "3",
+                    "--retry-delay", "2",
+                    "--anyauth", "-u", &auth,
+                    "-X", "POST",
+                    "-H", "Content-Type: text/xml",
+                    "-d", &dl_body,
+                    "-o", &seg_tmp_path,
+                    &format!("http://{}:{}/ISAPI/ContentMgmt/download", ip, http_port),
+                ]);
+                cmd.creation_flags(CREATE_NO_WINDOW);
+
+                let mut child = cmd.spawn().map_err(|e| format!("No se pudo iniciar curl para el segmento {}: {}", seg_idx, e))?;
+                let pid = child.id();
+
+                {
+                    let mut map = state_downloads.lock().unwrap();
+                    map.insert(dl_id.clone(), pid);
+                }
+
+                // Poll current segment download
+                loop {
+                    std::thread::sleep(std::time::Duration::from_millis(200));
+
+                    // Check if cancelled
+                    let is_registered = {
+                        let map = state_downloads.lock().unwrap();
+                        map.contains_key(&dl_id)
+                    };
+                    if !is_registered {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        if segments.len() > 1 {
+                            let _ = fs::remove_file(&seg_tmp_path);
                         }
-
-                        let file_size = fs::metadata(&file_path_clone).map(|m| m.len()).unwrap_or(0);
-                        if (status.success() || file_size > 50_000) && file_size > 0 {
-                            let _ = app_clone.emit("download-progress", DownloadProgressPayload {
-                                id: dl_id.clone(),
-                                status: "completed".to_string(),
-                                bytes_downloaded: file_size,
-                                speed_bps: 0.0,
-                                percentage: 100,
-                                error: None,
-                            });
-                            return Ok(file_path_clone);
-                        } else {
-                            let _ = fs::remove_file(&file_path_clone);
-                            let err_msg = "El grabador Hikvision no envió datos de video para este segmento.".to_string();
-                            let _ = app_clone.emit("download-progress", DownloadProgressPayload {
-                                id: dl_id.clone(),
-                                status: "error".to_string(),
-                                bytes_downloaded: file_size,
-                                speed_bps: 0.0,
-                                percentage: 0,
-                                error: Some(err_msg.clone()),
-                            });
-                            return Err(err_msg);
-                        }
-                    }
-                    Ok(None) => {
-                        let current_bytes = fs::metadata(&file_path_clone).map(|m| m.len()).unwrap_or(0);
-                        let now = std::time::Instant::now();
-                        let dt = (now - last_time).as_secs_f64();
-                        let speed_bps = if dt > 0.0 {
-                            (current_bytes.saturating_sub(last_bytes)) as f64 / dt
-                        } else {
-                            0.0
-                        };
-                        last_bytes = current_bytes;
-                        last_time = now;
-
-                        let percentage = if estimated_bytes > 0 {
-                            ((current_bytes as f64 / estimated_bytes as f64) * 100.0).min(99.0) as u32
-                        } else {
-                            50
-                        };
-
-                        let _ = app_clone.emit("download-progress", DownloadProgressPayload {
-                            id: dl_id.clone(),
-                            status: "downloading".to_string(),
-                            bytes_downloaded: current_bytes,
-                            speed_bps,
-                            percentage,
-                            error: None,
-                        });
-                    }
-                    Err(e) => {
                         let _ = fs::remove_file(&file_path_clone);
                         let _ = app_clone.emit("download-progress", DownloadProgressPayload {
                             id: dl_id.clone(),
-                            status: "error".to_string(),
+                            status: "cancelled".to_string(),
                             bytes_downloaded: 0,
                             speed_bps: 0.0,
                             percentage: 0,
-                            error: Some(e.to_string()),
+                            error: Some("Descarga cancelada por el usuario.".to_string()),
                         });
-                        return Err(e.to_string());
+                        return Err("Descarga cancelada.".to_string());
+                    }
+
+                    match child.try_wait() {
+                        Ok(Some(status)) => {
+                            if !status.success() {
+                                if segments.len() > 1 {
+                                    let _ = fs::remove_file(&seg_tmp_path);
+                                }
+                                let err_msg = format!("Error al descargar el segmento {} de la grabación (código: {:?})", seg_idx + 1, status.code());
+                                let _ = app_clone.emit("download-progress", DownloadProgressPayload {
+                                    id: dl_id.clone(),
+                                    status: "error".to_string(),
+                                    bytes_downloaded: cumulative_bytes,
+                                    speed_bps: 0.0,
+                                    percentage: 0,
+                                    error: Some(err_msg.clone()),
+                                });
+                                return Err(err_msg);
+                            }
+
+                            // If multiple segments, append seg_tmp_path into final_file
+                            if segments.len() > 1 {
+                                if let Ok(mut seg_file) = fs::File::open(&seg_tmp_path) {
+                                    let copied = std::io::copy(&mut seg_file, &mut final_file).unwrap_or(0);
+                                    cumulative_bytes += copied;
+                                    drop(seg_file);
+                                    let _ = fs::remove_file(&seg_tmp_path);
+                                }
+                            } else {
+                                cumulative_bytes = fs::metadata(&file_path_clone).map(|m| m.len()).unwrap_or(0);
+                            }
+                            break; // Done with this segment, move to next
+                        }
+                        Ok(None) => {
+                            let seg_bytes = fs::metadata(&seg_tmp_path).map(|m| m.len()).unwrap_or(0);
+                            let current_total = cumulative_bytes + seg_bytes;
+                            let now = std::time::Instant::now();
+                            let dt = (now - last_time).as_secs_f64();
+                            let speed_bps = if dt > 0.0 {
+                                (current_total.saturating_sub(last_progress_bytes)) as f64 / dt
+                            } else {
+                                0.0
+                            };
+                            last_progress_bytes = current_total;
+                            last_time = now;
+
+                            let percentage = if total_target_bytes > 0 {
+                                ((current_total as f64 / total_target_bytes as f64) * 100.0).min(99.0) as u32
+                            } else {
+                                50
+                            };
+
+                            let _ = app_clone.emit("download-progress", DownloadProgressPayload {
+                                id: dl_id.clone(),
+                                status: "downloading".to_string(),
+                                bytes_downloaded: current_total,
+                                speed_bps,
+                                percentage,
+                                error: None,
+                            });
+                        }
+                        Err(e) => {
+                            if segments.len() > 1 {
+                                let _ = fs::remove_file(&seg_tmp_path);
+                            }
+                            let _ = fs::remove_file(&file_path_clone);
+                            let _ = app_clone.emit("download-progress", DownloadProgressPayload {
+                                id: dl_id.clone(),
+                                status: "error".to_string(),
+                                bytes_downloaded: 0,
+                                speed_bps: 0.0,
+                                percentage: 0,
+                                error: Some(e.to_string()),
+                            });
+                            return Err(e.to_string());
+                        }
                     }
                 }
+            }
+
+            // Cleanup PID from map
+            {
+                let mut map = state_downloads.lock().unwrap();
+                map.remove(&dl_id);
+            }
+
+            let final_size = fs::metadata(&file_path_clone).map(|m| m.len()).unwrap_or(0);
+            if final_size > 50_000 {
+                let _ = app_clone.emit("download-progress", DownloadProgressPayload {
+                    id: dl_id.clone(),
+                    status: "completed".to_string(),
+                    bytes_downloaded: final_size,
+                    speed_bps: 0.0,
+                    percentage: 100,
+                    error: None,
+                });
+                Ok(file_path_clone)
+            } else {
+                let _ = fs::remove_file(&file_path_clone);
+                let err_msg = "El archivo descargado está vacío o el grabador no envió datos.".to_string();
+                let _ = app_clone.emit("download-progress", DownloadProgressPayload {
+                    id: dl_id.clone(),
+                    status: "error".to_string(),
+                    bytes_downloaded: 0,
+                    speed_bps: 0.0,
+                    percentage: 0,
+                    error: Some(err_msg.clone()),
+                });
+                Err(err_msg)
             }
         })
         .await
@@ -1342,7 +1422,7 @@ async fn start_dahua_direct_download(
 
                 let is_finished = download_size == -1 || (total_size > 0 && download_size >= total_size);
 
-                if is_finished || (no_growth_ticks >= 60 && current_bytes > 50_000) {
+                if is_finished {
                     unsafe {
                         fn_stop(dl_handle);
                         fn_logout(login_id);
@@ -1376,6 +1456,32 @@ async fn start_dahua_direct_download(
                         });
                         return Err(err_msg);
                     }
+                }
+
+                // 200ms per tick * 150 = 30 seconds timeout if completely dead connection
+                if no_growth_ticks >= 150 {
+                    unsafe {
+                        fn_stop(dl_handle);
+                        fn_logout(login_id);
+                    }
+                    {
+                        let mut map = state_dahua.lock().unwrap();
+                        map.remove(&dl_id);
+                    }
+                    let file_size = fs::metadata(&file_path_clone).map(|m| m.len()).unwrap_or(0);
+                    let err_msg = format!(
+                        "La descarga se interrumpió: el grabador Dahua dejó de responder tras 30 segundos (descargados: {} MB).",
+                        file_size / (1024 * 1024)
+                    );
+                    let _ = app_clone.emit("download-progress", DownloadProgressPayload {
+                        id: dl_id.clone(),
+                        status: "error".to_string(),
+                        bytes_downloaded: file_size,
+                        speed_bps: 0.0,
+                        percentage: 0,
+                        error: Some(err_msg.clone()),
+                    });
+                    return Err(err_msg);
                 }
 
                 let _ = app_clone.emit("download-progress", DownloadProgressPayload {

@@ -230,6 +230,7 @@ export async function downloadClipWithProgress(
       return savedPath;
     } catch (err: any) {
       if (cleanListener) cleanListener();
+      if (abortSignal?.aborted) return '';
       console.warn('[playback] Descarga ISAPI Turbo Hikvision falló, usando go2rtc stream...', err);
       // Fallback to go2rtc below
     }
@@ -302,6 +303,7 @@ export async function downloadClipWithProgress(
       return savedPath;
     } catch (err: any) {
       if (cleanListener) cleanListener();
+      if (abortSignal?.aborted) return '';
       console.warn('[playback] Descarga Directa NetSDK Dahua falló, usando go2rtc stream...', err);
       // Fallback to go2rtc below
     }

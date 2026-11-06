@@ -789,8 +789,12 @@ export const PlaybackModal: React.FC<PlaybackModalProps> = ({
                 <span className="font-semibold text-white">{activeDownload.fileName}</span>
                 <span className="text-[10px] text-slate-400 font-mono">
                   ({formatBytes(activeDownload.bytesDownloaded)}
-                  {activeDownload.status === 'downloading' && activeDownload.speedBps > 0 && (
-                    <span> • {(activeDownload.speedBps / (1024 * 1024)).toFixed(1)} MB/s</span>
+                  {activeDownload.status === 'downloading' && (
+                    activeDownload.speedBps > 0 ? (
+                      <span> • {(activeDownload.speedBps / (1024 * 1024)).toFixed(1)} MB/s</span>
+                    ) : (
+                      <span className="text-amber-400"> • Almacenando en búfer...</span>
+                    )
                   )})
                 </span>
                 {activeDownload.isAccelerated && (
